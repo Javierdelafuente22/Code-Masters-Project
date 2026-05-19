@@ -201,13 +201,38 @@ function IOSDevice({
     return () => clearInterval(id);
   }, []);
 
+  // Auto scale-down so the phone frame fits inside short laptop viewports
+  // without cropping. Cap at 1 so we never blow it up beyond its natural size.
+  // Mobile renders bypass IOSDevice entirely (full-screen), so this only
+  // affects desktop/laptop browsers.
+  const [scale, setScale] = React.useState(1);
+  React.useEffect(() => {
+    const compute = () => {
+      const margin = 40; // matches the 20px padding around the frame
+      const s = Math.min(
+        1,
+        (window.innerWidth  - margin) / width,
+        (window.innerHeight - margin) / height,
+      );
+      setScale(s > 0 ? s : 1);
+    };
+    compute();
+    window.addEventListener('resize', compute);
+    return () => window.removeEventListener('resize', compute);
+  }, [width, height]);
+
   return (
+    <div style={{
+      width: width * scale, height: height * scale,
+      position: 'relative', flexShrink: 0,
+    }}>
     <div style={{
       width, height, borderRadius: 48, overflow: 'hidden',
       position: 'relative', background: dark ? '#000' : '#F2F2F7',
       boxShadow: '0 40px 80px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.12)',
       fontFamily: '-apple-system, system-ui, sans-serif',
       WebkitFontSmoothing: 'antialiased',
+      transform: `scale(${scale})`, transformOrigin: 'top left',
     }}>
       {/* dynamic island */}
       <div style={{
@@ -235,6 +260,7 @@ function IOSDevice({
           background: dark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.25)',
         }} />
       </div>
+    </div>
     </div>
   );
 }
