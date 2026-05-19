@@ -1,27 +1,18 @@
 // Screen 4 — Profile confirmation
 function Screen4_Profile({ state, setState, onNext, onBack }) {
-  const [editing, setEditing] = React.useState(null);
-
   const facts = state.profile || [
-    { id: 'name',   icon: <IconHome size={16}/>,      label: 'Name',            value: 'Sarah Chen',               why: "It appears on your dashboard and weekly reports" },
     { id: 'solar',  icon: <IconSolar size={16}/>,     label: 'Solar',           value: '8 panels · 3.2 kWp',       why: "Helps us know how much you can trade" },
     { id: 'ev',     icon: <IconCar size={16}/>,       label: 'EV',              value: 'Tesla Model 3',            why: "We schedule charging around your cheapest windows" },
     { id: 'work',   icon: <IconBriefcase size={16}/>, label: 'Work pattern',    value: 'Home 3 days / week',       why: "Your trading schedule adapts to when you're home" },
     { id: 'house',  icon: <IconPeople size={16}/>,    label: 'Household',       value: '2 adults',                 why: "More people at home means higher consumption" },
   ];
 
-  const saveEdit = (id, value) => {
-    const next = facts.map(f => f.id === id ? { ...f, value } : f);
-    setState(s => ({ ...s, profile: next }));
-    setEditing(null);
-  };
-
   return (
     <PwScreen step={3} onBack={onBack}>
       <PwPageTitle
         eyebrow="Step 3 of 4 — Profile"
-        title="Check your details."
-        subtitle="Your details have been pre-filled with your Octopus account. Tap the pencil to edit, or the info icon to see why we use it."
+        title="Your details"
+        subtitle="Your details have been pre-filled with your Octopus account. Tap the info icon to see why we use it."
         size={32}
       />
 
@@ -78,38 +69,11 @@ function Screen4_Profile({ state, setState, onNext, onBack }) {
                   <span className="t-label" style={{ color: 'var(--ink-500)' }}>{f.label}</span>
                   <PwTooltip label={f.why}/>
                 </div>
-                {editing === f.id ? (
-                  <input
-                    autoFocus
-                    defaultValue={f.value}
-                    onBlur={(e) => saveEdit(f.id, e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(f.id, e.currentTarget.value); }}
-                    style={{
-                      marginTop: 2, fontSize: 15, fontFamily: 'var(--font-sans)',
-                      width: '100%', border: 0, outline: 0,
-                      borderBottom: '1.5px solid var(--forest-700)',
-                      background: 'transparent', padding: '2px 0',
-                      color: 'var(--ink-900)',
-                    }}/>
-                ) : (
-                  <div style={{
-                    fontSize: 15, color: 'var(--ink-900)', marginTop: 2,
-                    fontFamily: 'var(--font-sans)', letterSpacing: '-0.005em',
-                  }}>{f.value}</div>
-                )}
+                <div style={{
+                  fontSize: 15, color: 'var(--ink-900)', marginTop: 2,
+                  fontFamily: 'var(--font-sans)', letterSpacing: '-0.005em',
+                }}>{f.value}</div>
               </div>
-              <button
-                onClick={() => setEditing(f.id)}
-                style={{
-                  appearance: 'none', border: 0, background: 'transparent',
-                  width: 32, height: 32, borderRadius: 999,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: 'var(--ink-400)', cursor: 'pointer',
-                }}
-                aria-label={`Edit ${f.label}`}
-              >
-                <IconPencil size={14}/>
-              </button>
             </div>
           ))}
         </div>
