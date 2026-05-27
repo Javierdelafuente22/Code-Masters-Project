@@ -165,8 +165,8 @@ def plot_demand_comparison(plot_df, category, year_shift=0):
         data_monday = plot_df['timestamp'].iloc[0].normalize()
         data_monday = data_monday - pd.Timedelta(days=data_monday.dayofweek)
         today = pd.Timestamp.now().normalize()
-        today_monday = today - pd.Timedelta(days=today.dayofweek)
-        plot_df['timestamp'] = plot_df['timestamp'] + (today_monday - data_monday)
+        next_monday = today + pd.Timedelta(days=(7 - today.dayofweek) % 7 or 7)
+        plot_df['timestamp'] = plot_df['timestamp'] + (next_monday - data_monday)
 
     plt.figure(figsize=(10, 5))
 
