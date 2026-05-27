@@ -1,8 +1,29 @@
 import pandas as pd
 import numpy as np
 import os
+from datetime import datetime
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+
+# demand.csv covers two years. We always run the mask against 2024 data and
+# always re-target the plot's x-axis to the current calendar year, regardless
+# of what year the LLM picked. This makes the demo behave consistently whether
+# the LLM emits 2024 dates (the prompt's default) or 2026 dates ("next week").
+DATA_START_YEAR = 2024
+DATA_END_YEAR = 2025
+DISPLAY_YEAR = datetime.now().year  # auto-advances year-on-year
+
+
+def _mask_shift_years(start_date):
+    """How many years to add to LLM dates so start_date lands in DATA_START_YEAR.
+    Negative when the LLM picked a future year, positive when in the past."""
+    return DATA_START_YEAR - start_date.year
+
+
+def _shift_years(dt, years):
+    """Leap-day-safe year shift via DateOffset."""
+    return dt if years == 0 else (dt + pd.DateOffset(years=years))
+
 
 def apply_lifestyle_update(json_payload, input_csv="data/demand.csv", output_csv="data/chatbot/updated_demand.csv"):
     """
@@ -39,7 +60,17 @@ def apply_lifestyle_update(json_payload, input_csv="data/demand.csv", output_csv
     
     start_date = pd.to_datetime(timing['start_date'], dayfirst=True)
     end_date = pd.to_datetime(timing['end_date'], dayfirst=True)
-    
+
+    # Always pin start_date to DATA_START_YEAR for masking, and always
+    # re-target the display to DISPLAY_YEAR. This way the plot's x-axis shows
+    # the current year regardless of what year the LLM emits.
+    mask_shift = _mask_shift_years(start_date)
+    if mask_shift != 0:
+        print(f"  Shifting LLM dates by {mask_shift:+d}y so start lands in {DATA_START_YEAR}")
+        start_date = _shift_years(start_date, mask_shift)
+        end_date = _shift_years(end_date, mask_shift)
+    json_payload['year_shift'] = DISPLAY_YEAR - DATA_START_YEAR
+
     # Push the end_date to 23:59 so it includes the entirety of the final day
     if end_date.hour == 0 and end_date.minute == 0:
          end_date = end_date.replace(hour=23, minute=59)
@@ -89,11 +120,16 @@ def get_plot_window(df, json_payload):
 
     category = json_payload.get('category', '')
     first_masked_time = df[df['is_masked']]['timestamp'].iloc[0]
-    
+
     if category == 'Vacation':
-        start_date = pd.to_datetime(json_payload['timing']['start_date'], dayfirst=True)
-        end_date = pd.to_datetime(json_payload['timing']['end_date'], dayfirst=True)
-        
+        # Re-apply the same mask-shift apply_lifestyle_update used, so the
+        # window slice lands on the actual CSV rows (not the display year).
+        raw_start = pd.to_datetime(json_payload['timing']['start_date'], dayfirst=True)
+        raw_end = pd.to_datetime(json_payload['timing']['end_date'], dayfirst=True)
+        shift = _mask_shift_years(raw_start)
+        start_date = _shift_years(raw_start, shift)
+        end_date = _shift_years(raw_end, shift)
+
         plot_start = start_date.normalize() - pd.Timedelta(days=1)
         plot_end = end_date.normalize() + pd.Timedelta(days=2)
         
@@ -106,36 +142,45 @@ def get_plot_window(df, json_payload):
     return plot_df
 
 
-def plot_demand_comparison(plot_df, category):
+def plot_demand_comparison(plot_df, category, year_shift=0):
     """
     Creates a clean, readable line chart comparing pre and post demand.
+    `year_shift` is added back to the x-axis timestamps so the chart shows the
+    user's originally-requested year, even though the masking used analogue
+    rows from inside the dataset.
     """
     print("Generating comparison graph...")
-    
+
+    # Re-add the shift only for the x-axis. The is_masked / pre / post columns
+    # stay aligned because we shift the whole row's timestamp by the same amount.
+    if year_shift > 0:
+        plot_df = plot_df.copy()
+        plot_df['timestamp'] = plot_df['timestamp'] + pd.DateOffset(years=year_shift)
+
     plt.figure(figsize=(10, 5))
-    
+
     # 1. Plot the continuous New Demand (Blue) everywhere
-    plt.plot(plot_df['timestamp'], plot_df['post_demand'], 
+    plt.plot(plot_df['timestamp'], plot_df['post_demand'],
              label='Updated Demand', color='#1f77b4', linewidth=2)
-    
+
     # Create the "Visual Bridge" mask
     visual_mask = (
-        plot_df['is_masked'] | 
-        plot_df['is_masked'].shift(1).fillna(False) | 
+        plot_df['is_masked'] |
+        plot_df['is_masked'].shift(1).fillna(False) |
         plot_df['is_masked'].shift(-1).fillna(False)
     )
-    
+
     # 2. Mask the Original Demand so it ONLY shows during the change
     original_masked = plot_df['pre_demand'].where(visual_mask, np.nan)
-    
+
     # Plot Original Demand "Ghost" Line (Grey, Dashed)
-    plt.plot(plot_df['timestamp'], original_masked, 
+    plt.plot(plot_df['timestamp'], original_masked,
              label='Original Demand', color="#9E9E9E", linewidth=2, linestyle='--')
-    
+
     # 3. Highlight the area between the lines to show the delta
-    plt.fill_between(plot_df['timestamp'], 
-                     plot_df['pre_demand'], 
-                     plot_df['post_demand'], 
+    plt.fill_between(plot_df['timestamp'],
+                     plot_df['pre_demand'],
+                     plot_df['post_demand'],
                      where=visual_mask,
                      interpolate=True, # Interpolate ensures diagonals are filled smoothly
                      color='orange', alpha=0.2, label='Net Change')

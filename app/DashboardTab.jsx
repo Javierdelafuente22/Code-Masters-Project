@@ -362,8 +362,7 @@ function PdfViewer({ onBack }) {
   React.useEffect(() => {
     const pdfjsLib = window.pdfjsLib;
     if (!pdfjsLib) { setError(true); setLoading(false); return; }
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
 
     pdfjsLib.getDocument('app/ampeer_weekly_report.pdf').promise
       .then(pdf => {

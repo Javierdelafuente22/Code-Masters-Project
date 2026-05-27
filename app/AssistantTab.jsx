@@ -2,6 +2,18 @@
   timeZone: 'Europe/London', hour: 'numeric', minute: '2-digit', hour12: true,
 }).format(new Date()).replace(' ', '').toLowerCase();
 
+// Local Flask server. Reachable on localhost; on GitHub Pages the probe
+// will fail and the frontend falls back to the hard-coded chat logic below.
+const CHAT_API_BASE = 'http://localhost:5000';
+
+// Fetch with a timeout so the probe can't hang the UI.
+const fetchWithTimeout = (url, opts = {}, ms = 1500) => {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { ...opts, signal: ctrl.signal })
+    .finally(() => clearTimeout(id));
+};
+
 function SmartModeButton({ onClick }) {
   const [hov, setHov] = React.useState(false);
   return (
@@ -51,9 +63,22 @@ function AssistantTab() {
   const [calEnabled, setCalEnabled] = React.useState(false);
   const [locationEnabled, setLocationEnabled] = React.useState(false);
   const [listening, setListening] = React.useState(false);
+  const [apiMode, setApiMode] = React.useState(false);
   const recognitionRef = React.useRef(null);
   const scrollRef = React.useRef();
   const inputRef = React.useRef();
+
+  // Probe the local Flask server once on mount. If it answers, use the
+  // Gemini-backed path for the rest of the session. If not (GitHub Pages,
+  // server down, no API key), stay on the hard-coded path.
+  React.useEffect(() => {
+    let cancelled = false;
+    fetchWithTimeout(`${CHAT_API_BASE}/health`, {}, 1500)
+      .then(r => r.ok ? r.json() : null)
+      .then(j => { if (!cancelled && j && j.ok) setApiMode(true); })
+      .catch(() => { /* fallback path */ });
+    return () => { cancelled = true; };
+  }, []);
 
   // Web Speech API — speech-to-text. Tap mic, speak, transcript fills the input.
   const speechSupported = typeof window !== 'undefined' &&
@@ -127,7 +152,40 @@ function AssistantTab() {
     setInput('');
     if (inputRef.current) { inputRef.current.style.height = '36px'; }
 
-    // Simulate AI response after a beat
+    if (apiMode) {
+      // Gemini-backed path. Falls through to the hard-coded matcher on any
+      // failure (network, 5xx, malformed JSON) so the user always gets a reply.
+      fetchWithTimeout(`${CHAT_API_BASE}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      }, 15000)
+        .then(r => r.ok ? r.json() : Promise.reject('http'))
+        .then(j => {
+          if (!j || !j.ok || !j.result) throw 'shape';
+          const r = j.result;
+          if (r.category === 'Error' || !Array.isArray(r.plan) || r.plan.length === 0) {
+            setMessages((m) => [...m, {
+              role: 'ai', type: 'message', ts: 'now',
+              text: r.mission_check || "Sorry, I couldn't understand that."
+            }]);
+            return;
+          }
+          setMessages((m) => [...m, {
+            role: 'ai', type: 'plan', ts: 'now',
+            summary: r.mission_check,
+            plan: r.plan,
+            confirm: true,
+            _payload: r,
+          }]);
+        })
+        .catch(() => {
+          setMessages((m) => [...m, aiRespond(text)]);
+        });
+      return;
+    }
+
+    // Hard-coded fallback path.
     setTimeout(() => {
       const response = aiRespond(text);
       setMessages((m) => [...m, response]);
@@ -243,6 +301,10 @@ function AssistantTab() {
   };
 
   const handleConfirm = (idx, ok) => {
+    // Capture the message we're confirming before any state update so we can
+    // forward its payload to /apply (only present in API mode).
+    const target = messages[idx];
+
     setMessages((m) => {
       const next = [...m];
       next[idx] = { ...next[idx], confirm: false, resolved: ok ? 'yes' : 'no' };
@@ -261,6 +323,16 @@ function AssistantTab() {
       }
       return next;
     });
+
+    if (ok && apiMode && target && target._payload) {
+      // Fire-and-forget: the server spawns the matplotlib plot in a subprocess
+      // and returns immediately. The chat UI doesn't need to wait or render it.
+      fetchWithTimeout(`${CHAT_API_BASE}/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payload: target._payload }),
+      }, 5000).catch(() => { /* plot just won't open; UI already moved on */ });
+    }
   };
 
   const handleEnable = ({ cal, location }) => {
