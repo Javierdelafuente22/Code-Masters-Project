@@ -23,7 +23,7 @@ class EnergyChatbot:
         if prompt_path is None:
             prompt_path = os.path.join(
                 os.path.dirname(os.path.abspath(__file__)),
-                "chatbot_instructions.txt",
+                "system_prompt_chatbot.txt",
             )
         with open(prompt_path, "r", encoding="utf-8") as f:
             self.system_instructions = f.read()

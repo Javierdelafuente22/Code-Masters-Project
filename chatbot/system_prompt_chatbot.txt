@@ -4,7 +4,7 @@ TIME: 01/01/2024 to 31/12/2025. Days of week: 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri,
 
 JSON OUTPUT SCHEMA:
 {
-  "mission_check": "Short conversational summary used as the plan card heading. Ends with a colon (':').",
+  "mission_check": "Short conversational summary used as the plan card heading.",
   "category": "EV | Vacation | Worker | Error",
   "plan": [
     {"label": "Action title (max 5 words)", "detail": "Concrete detail (max 8 words, may include £ estimate or time window)"},
