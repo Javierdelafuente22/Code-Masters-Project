@@ -133,10 +133,11 @@ def get_plot_window(df, json_payload):
         plot_start = start_date.normalize() - pd.Timedelta(days=1)
         plot_end = end_date.normalize() + pd.Timedelta(days=2)
         
-    else: 
-        # EV and Worker use a 24-hour (daily) window
-        plot_start = first_masked_time.normalize()
-        plot_end = plot_start + pd.Timedelta(days=1)
+    else:
+        # EV and Worker show a Mon-Fri week containing the first masked row
+        data_monday = first_masked_time.normalize() - pd.Timedelta(days=first_masked_time.dayofweek)
+        plot_start = data_monday
+        plot_end = data_monday + pd.Timedelta(days=4, hours=23)  # Friday 23:00
 
     plot_df = df[(df['timestamp'] >= plot_start) & (df['timestamp'] <= plot_end)].copy()
     return plot_df
@@ -151,11 +152,21 @@ def plot_demand_comparison(plot_df, category, year_shift=0):
     """
     print("Generating comparison graph...")
 
-    # Re-add the shift only for the x-axis. The is_masked / pre / post columns
-    # stay aligned because we shift the whole row's timestamp by the same amount.
-    if year_shift > 0:
-        plot_df = plot_df.copy()
-        plot_df['timestamp'] = plot_df['timestamp'] + pd.DateOffset(years=year_shift)
+    plot_df = plot_df.copy()
+
+    if category == 'Vacation':
+        # Vacation: shift by year_shift years (dates come from the LLM payload)
+        if year_shift > 0:
+            plot_df['timestamp'] = plot_df['timestamp'] + pd.DateOffset(years=year_shift)
+    else:
+        # Worker / EV: re-anchor the data's Monday to this week's Monday so the
+        # x-axis reads as "today's week", even though the underlying values come
+        # from the 2024/2025 dataset.
+        data_monday = plot_df['timestamp'].iloc[0].normalize()
+        data_monday = data_monday - pd.Timedelta(days=data_monday.dayofweek)
+        today = pd.Timestamp.now().normalize()
+        today_monday = today - pd.Timedelta(days=today.dayofweek)
+        plot_df['timestamp'] = plot_df['timestamp'] + (today_monday - data_monday)
 
     plt.figure(figsize=(10, 5))
 
@@ -182,20 +193,14 @@ def plot_demand_comparison(plot_df, category, year_shift=0):
                      plot_df['pre_demand'],
                      plot_df['post_demand'],
                      where=visual_mask,
-                     interpolate=True, # Interpolate ensures diagonals are filled smoothly
+                     interpolate=True,
                      color='orange', alpha=0.2, label='Net Change')
 
     plt.title(f"User Electricity Consumption: {category} Profile", fontsize=14)
-    
-    # Dynamic X-Axis Formatting
+
     ax = plt.gca()
-    if category == 'Vacation':
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m/%Y'))
-        plt.xlabel("Date (DD/MM/YYYY)", fontsize=12)
-    else:
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:00')) 
-        plt.xlabel("Time of Day (HH:MM)", fontsize=12)
-        
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m/%Y'))
+    plt.xlabel("Date (DD/MM/YYYY)", fontsize=12)
     plt.xticks(rotation=30)
     plt.ylabel("Normalized Demand (kWh)", fontsize=12)
     plt.ylim(0, 1.05)
