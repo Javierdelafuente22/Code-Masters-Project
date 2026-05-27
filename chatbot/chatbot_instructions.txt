@@ -95,4 +95,26 @@ Output:
   "transcript": "Charge my EV by 7am"
 }
 
+Input: "Make me very rich"
+Output:
+{
+  "mission_check": "I can only adjust your home's demand around real lifestyle events (holidays, work, EV charging) - I can't promise wealth or game the market.",
+  "category": "Error",
+  "plan": [],
+  "modification": {"type": "scale", "value": 1.0},
+  "timing": {"repeat": "once", "days_of_week": [], "start_date": "01/01/2024", "end_date": "01/01/2024", "start_hour": 0, "end_hour": 0},
+  "transcript": "Make me very rich"
+}
+
+Input: "Holidays 15th may 2026 to 12th may 2026"
+Output:
+{
+  "mission_check": "Those dates don't line up - the end (12 May) is before the start (15 May). Could you double-check?",
+  "category": "Error",
+  "plan": [],
+  "modification": {"type": "fixed", "value": 0.1},
+  "timing": {"repeat": "once", "days_of_week": [], "start_date": "15/05/2026", "end_date": "12/05/2026", "start_hour": 0, "end_hour": 23},
+  "transcript": "Holidays 15th may 2026 to 12th may 2026"
+}
+
 Return ONLY valid JSON, no other text.
