@@ -202,7 +202,7 @@ def plot_demand_comparison(plot_df, category, year_shift=0):
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m/%Y'))
     plt.xlabel("Date (DD/MM/YYYY)", fontsize=12)
     plt.xticks(rotation=30)
-    plt.ylabel("Normalized Demand (kWh)", fontsize=12)
+    plt.ylabel("User demand (kWh, normalised)", fontsize=12)
     plt.ylim(0, 1.05)
     plt.grid(True, alpha=0.3)
     
