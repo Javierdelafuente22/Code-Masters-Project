@@ -120,8 +120,8 @@ def generate_saturation_study():
     fig, ax1 = plt.subplots(figsize=(12, 7), dpi=200)
 
     # Left Axis: Savings
-    ln1 = ax1.plot(res_df['n'], res_df['Agent 1'], marker='o', color='#1f77b4', linewidth=3, markersize=10, label='Agent 1')
-    ln2 = ax1.plot(res_df['n'], res_df['Community'], marker='s', color='#2ca02c', linewidth=3, markersize=10, label='Community')
+    ln1 = ax1.plot(res_df['n'], res_df['Agent 1'], marker='o', color='#0072B2', linewidth=3, markersize=10, label='Agent 1')
+    ln2 = ax1.plot(res_df['n'], res_df['Community'], marker='s', color='#009E73', linewidth=3, markersize=10, label='Community')
     
     ax1.set_xlabel('Number of Agents with Batteries (Adoption Density)', fontweight='bold', fontsize=16)
     ax1.set_ylabel('Savings (%)', fontweight='bold', fontsize=16)

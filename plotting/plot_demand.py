@@ -31,21 +31,23 @@ YEARLY_PROFILES = [
 ]
 YEARLY_RESAMPLE = "W"
 
-# 9 distinguishable colors, consistent with the existing palette
-# (greens/reds/blues/oranges/purples used in plot_analysis.py).
+# Wong (Bang Wong, Nature Methods 2011) provides 8 colorblind-safe colors;
+# we need 9 for the SSEN profiles. We use 7 Wong colors plus two from Paul
+# Tol's muted palette (wine + indigo) instead of Wong's black, for more
+# visual variety while staying colorblind-safe.
 DAILY_COLORS = [
-    '#16a34a',  # green
-    '#dc2626',  # red
-    '#2563eb',  # blue
-    '#f97316',  # orange
-    '#7c3aed',  # purple
-    '#0891b2',  # teal
-    '#ca8a04',  # amber
-    '#e11d48',  # rose
-    '#475569',  # slate
+    '#009E73',  # bluish green        (Wong)
+    '#D55E00',  # vermillion          (Wong)
+    '#0072B2',  # blue                (Wong)
+    '#E69F00',  # orange              (Wong)
+    '#CC79A7',  # reddish purple      (Wong)
+    '#56B4E9',  # sky blue            (Wong)
+    '#F0E442',  # yellow              (Wong)
+    '#882255',  # wine                (Tol muted)
+    '#332288',  # indigo              (Tol muted)
 ]
 
-YEARLY_COLORS = ['#16a34a', '#2563eb', '#f97316']
+YEARLY_COLORS = ['#009E73', '#0072B2', '#E69F00']
 
 SSEN_COLUMNS = [
     "SSEN-2506608140", "SSEN-2518012120", "SSEN-2521012110",

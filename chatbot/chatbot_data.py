@@ -170,9 +170,9 @@ def plot_demand_comparison(plot_df, category, year_shift=0):
 
     plt.figure(figsize=(10, 5))
 
-    # 1. Plot the continuous New Demand (Blue) everywhere
+    # 1. Plot the continuous New Demand (Wong blue) everywhere
     plt.plot(plot_df['timestamp'], plot_df['post_demand'],
-             label='Updated Demand', color='#1f77b4', linewidth=2)
+             label='Updated Demand', color='#0072B2', linewidth=2)
 
     # Create the "Visual Bridge" mask
     visual_mask = (
@@ -194,7 +194,7 @@ def plot_demand_comparison(plot_df, category, year_shift=0):
                      plot_df['post_demand'],
                      where=visual_mask,
                      interpolate=True,
-                     color='orange', alpha=0.2, label='Net Change')
+                     color='#E69F00', alpha=0.3, label='Net Change')
 
     plt.title(f"User Electricity Consumption: {category} Profile", fontsize=14)
 

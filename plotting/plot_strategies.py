@@ -8,10 +8,16 @@ Requires: ppo_inference_data.csv from plot_analysis.py
 Generates: plot_lp_vs_ppo.png, plot_all_strategies.png
 """
 
+import os
+import sys
+
+# Allow `python plotting/plot_strategies.py` to find sibling packages
+# (utils, rl_env) by putting the project root on sys.path before they're imported.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import os
 import pulp
 from collections import deque
 
@@ -181,13 +187,13 @@ def plot_lp_vs_ppo(ppo_df, lp_df, output_path):
         )
         lp_hourly = lp_regime.groupby('hour')['soc'].mean()
 
-        ax.plot(hours, ppo_hourly['soc'].values, linewidth=2.5, color='#2563eb',
+        ax.plot(hours, ppo_hourly['soc'].values, linewidth=2.5, color='#0072B2',
                 label='PPO battery SoC')
-        ax.plot(hours, lp_hourly.values, linewidth=2.5, color='#dc2626',
+        ax.plot(hours, lp_hourly.values, linewidth=2.5, color='#D55E00',
                 linestyle='--', label='LP battery SoC (perfect foresight)')
-        ax.plot(hours, ppo_hourly['import_price'].values, linewidth=1.5, color='#f97316',
+        ax.plot(hours, ppo_hourly['import_price'].values, linewidth=1.5, color='#E69F00',
                 linestyle=':', alpha=0.7, label='Import price (p/kWh)')
-        ax.plot(hours, ppo_hourly['net_community'].values, linewidth=1.5, color='#7c3aed',
+        ax.plot(hours, ppo_hourly['net_community'].values, linewidth=1.5, color='#CC79A7',
                 linestyle='--', alpha=0.7, label='Net community load (kW)')
 
         ax.set_ylabel('Value (normalised)')
@@ -232,15 +238,15 @@ def plot_all_strategies(ppo_df, lp_df, heuristic_df, output_path):
         lp_hourly = lp_regime.groupby('hour')['soc'].mean()
         heur_hourly = heur_regime.groupby('hour')['soc'].mean()
 
-        ax.plot(hours, heur_hourly.values, linewidth=2, color='#dc2626',
+        ax.plot(hours, heur_hourly.values, linewidth=2, color='#D55E00',
                 label='Heuristic SoC (price percentiles)')
-        ax.plot(hours, ppo_hourly['soc'].values, linewidth=2, color='#2563eb',
+        ax.plot(hours, ppo_hourly['soc'].values, linewidth=2, color='#0072B2',
                 label='PPO SoC (learned policy)')
-        ax.plot(hours, lp_hourly.values, linewidth=2, color='#16a34a',
+        ax.plot(hours, lp_hourly.values, linewidth=2, color='#009E73',
                 label='LP SoC (perfect foresight)')
-        ax.plot(hours, ppo_hourly['import_price'].values, linewidth=2.5, color='#f97316',
+        ax.plot(hours, ppo_hourly['import_price'].values, linewidth=2.5, color='#E69F00',
                 linestyle=':', alpha=0.7, label='Import price (p/kWh)')
-        ax.plot(hours, ppo_hourly['net_community'].values, linewidth=2, color='#7c3aed',
+        ax.plot(hours, ppo_hourly['net_community'].values, linewidth=2, color='#CC79A7',
                 linestyle='--', alpha=0.7, label='Net community load (kW)')
 
         ax.set_ylabel('Value (normalised)')
@@ -282,11 +288,11 @@ def plot_soc_comparison(ppo_df, lp_df, heuristic_df, output_path):
         lp_hourly = lp_regime.groupby('hour')['soc'].mean()
         heur_hourly = heur_regime.groupby('hour')['soc'].mean()
 
-        ax.plot(hours, heur_hourly.values, linewidth=2, color='#dc2626',
+        ax.plot(hours, heur_hourly.values, linewidth=2, color='#D55E00',
                 label='Heuristic SoC (price percentiles)')
-        ax.plot(hours, ppo_hourly.values, linewidth=2, color='#2563eb',
+        ax.plot(hours, ppo_hourly.values, linewidth=2, color='#0072B2',
                 label='PPO SoC (learned policy)')
-        ax.plot(hours, lp_hourly.values, linewidth=2, color='#16a34a',
+        ax.plot(hours, lp_hourly.values, linewidth=2, color='#009E73',
                 label='LP SoC (perfect foresight)')
 
         ax.set_ylabel('Battery SoC (normalised)')

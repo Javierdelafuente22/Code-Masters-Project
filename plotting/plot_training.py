@@ -30,10 +30,10 @@ def plot_lines(df, output_path, train_window=5, eval_window=5):
     eval_stats = _get_rolling_stats(df, 'eval', window=eval_window)
     if train_stats is not None:
         ax.plot(train_stats['timestep'], train_stats['reward_mean'],
-                linewidth=2, color='#f97316', label='Training')
+                linewidth=2, color='#E69F00', label='Training')
     if eval_stats is not None:
         ax.plot(eval_stats['timestep'], eval_stats['reward_mean'],
-                linewidth=2, color='#2563eb', label='Test (unseen data)')
+                linewidth=2, color='#0072B2', label='Test (unseen data)')
     ax.set_xlabel('Training Timesteps')
     ax.set_ylabel('Episode Reward')
     ax.set_title('PPO Training: Train vs Test Reward', fontweight='bold')
@@ -48,8 +48,8 @@ def plot_lines(df, output_path, train_window=5, eval_window=5):
 def plot_shaded_both(df, output_path, train_window=5, eval_window=5, band_factor=0.5):
     fig, ax = plt.subplots(figsize=(12, 6))
     for source, color, label, w in [
-        ('train', '#f97316', 'Training', train_window),
-        ('eval', '#2563eb', 'Test (unseen data)', eval_window),
+        ('train', '#E69F00', 'Training', train_window),
+        ('eval', '#0072B2', 'Test (unseen data)', eval_window),
     ]:
         stats = _get_rolling_stats(df, source, w)
         if stats is None or len(stats) < 2:
@@ -78,9 +78,9 @@ def plot_shaded_test_only(df, output_path, eval_window=5, band_factor=0.5):
     fig, ax = plt.subplots(figsize=(12, 6))
     low = stats['reward_mean'] - band_factor * stats['reward_std']
     high = stats['reward_mean'] + band_factor * stats['reward_std']
-    ax.fill_between(stats['timestep'], low, high, alpha=0.25, color='#2563eb')
+    ax.fill_between(stats['timestep'], low, high, alpha=0.25, color='#0072B2')
     ax.plot(stats['timestep'], stats['reward_mean'],
-            linewidth=2.5, color='#2563eb', label=f'Test (± {band_factor} std)')
+            linewidth=2.5, color='#0072B2', label=f'Test (± {band_factor} std)')
     ax.set_xlabel('Training Timesteps')
     ax.set_ylabel('Episode Reward')
     ax.set_title('PPO Training: Test Set Reward Range & Trend', fontweight='bold')
