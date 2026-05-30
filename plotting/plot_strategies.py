@@ -314,6 +314,40 @@ def plot_soc_comparison(ppo_df, lp_df, heuristic_df, output_path):
 
 
 # ============================================================
+# Plot: SoC-only comparison averaged across ALL test days (single panel)
+# ============================================================
+def plot_soc_comparison_overall(ppo_df, lp_df, heuristic_df, output_path):
+    fig, ax = plt.subplots(figsize=(12, 5))
+    hours = np.arange(24)
+
+    heur_hourly = heuristic_df.groupby('hour')['soc'].mean()
+    ppo_hourly = ppo_df.groupby('hour')['soc'].mean()
+    lp_hourly = lp_df.groupby('hour')['soc'].mean()
+
+    ax.plot(hours, heur_hourly.values, linewidth=2, color='#D55E00',
+            label='Heuristic SoC (price percentiles)')
+    ax.plot(hours, ppo_hourly.values, linewidth=2, color='#0072B2',
+            label='PPO SoC (learned policy)')
+    ax.plot(hours, lp_hourly.values, linewidth=2, color='#009E73',
+            label='LP SoC (perfect foresight)')
+
+    ax.set_ylabel('Battery SoC (normalised)')
+    ax.set_xlabel('Hour of day')
+    ax.set_ylim(-0.05, 1.05)
+    ax.set_xlim(-0.5, 23.5)
+    ax.set_xticks(range(0, 24, 2))
+    ax.grid(True, alpha=0.2)
+    ax.set_title('Battery SoC Comparison: Average Across All Test Days',
+                 fontsize=14, fontweight='bold')
+    ax.legend(loc='upper left', fontsize=STRATEGY_LEGEND_SIZE)
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"SoC overall comparison plot saved: {output_path}")
+
+
+# ============================================================
 # Main
 # ============================================================
 if __name__ == "__main__":
@@ -343,5 +377,6 @@ if __name__ == "__main__":
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     plot_all_strategies(ppo_df, lp_df, heur_df, os.path.join(OUTPUT_DIR, 'plot_all_strategies.png'))
     plot_soc_comparison(ppo_df, lp_df, heur_df, os.path.join(OUTPUT_DIR, 'plot_soc_comparison.png'))
+    plot_soc_comparison_overall(ppo_df, lp_df, heur_df, os.path.join(OUTPUT_DIR, 'plot_soc_comparison_overall.png'))
 
     print("\nDone.")

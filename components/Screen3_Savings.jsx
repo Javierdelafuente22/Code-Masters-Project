@@ -1,7 +1,7 @@
 // Screen 3 — Savings reveal
 function Screen3_Savings({ state, onNext, onBack }) {
   const [showCalc, setShowCalc] = React.useState(false);
-  const [lo, hi] = [285, 550];
+  const [lo, hi] = [100, 300];
   const [loAnim, setLoAnim] = React.useState(0);
   const [hiAnim, setHiAnim] = React.useState(0);
 
@@ -24,7 +24,7 @@ function Screen3_Savings({ state, onNext, onBack }) {
       <PwPageTitle
         eyebrow="Step 2 of 4 — Your numbers"
         title="You could save..."
-        subtitle={`Estimated range per year for homes like yours in ${state.area || 'Fulham'}. Range reflects weather, price and consumption variability.`}
+        subtitle={`For homes like yours in ${state.area || 'London'} with solar panels and batteries. Estimated range reflects weather, price and consumption variability.`}
         size={32}
       />
       <div>
@@ -70,10 +70,10 @@ function Screen3_Savings({ state, onNext, onBack }) {
           </div>
 
           {[
-            { label: 'Standard grid tariff', value: 1640, color: 'var(--cream-200)', highlight: false },
-            { label: 'With Ampeer',    value: 1250, color: 'var(--lime-500)', highlight: true, savings: 'save £390' },
+            { label: 'Standard grid tariff with your setup', value: 800, color: 'var(--cream-200)', highlight: false },
+            { label: 'With Ampeer',    value: 606, color: 'var(--lime-500)', highlight: true, savings: 'save £194' },
           ].map((row, i) => {
-            const max = 1640;
+            const max = 800;
             const pct = (row.value / max) * 100;
             return (
               <div key={i} style={{
@@ -159,11 +159,11 @@ function Screen3_Savings({ state, onNext, onBack }) {
               display: 'grid', gridTemplateColumns: '1fr auto', gap: '8px 16px',
               fontSize: 13,
             }}>
-              <span style={{ color: 'var(--ink-600)' }}>Avg. household consumption</span>
-              <span className="t-num" style={{ color: 'var(--ink-900)' }}>9300 kWh</span>
-              <span style={{ color: 'var(--ink-600)' }}>Avg. import price </span>
-              <span className="t-num" style={{ color: 'var(--ink-900)', fontWeight: 600 }}>17.6p / kWh</span>
-              <span style={{ color: 'var(--ink-600)' }}>Ampeer's avg. savings</span>
+              <span style={{ color: 'var(--ink-600)' }}>Average household bill</span>
+              <span className="t-num" style={{ color: 'var(--ink-900)' }}>£1400 / year</span>
+              <span style={{ color: 'var(--ink-600)' }}>Solar panel and battery savings </span>
+              <span className="t-num" style={{ color: 'var(--ink-900)', fontWeight: 600 }}>£600 / year</span>
+              <span style={{ color: 'var(--ink-600)' }}>Ampeer's additional savings</span>
               <span className="t-num" style={{ color: 'var(--lime-600)', fontWeight: 600 }}>24%</span>
             </div>
             <div style={{
