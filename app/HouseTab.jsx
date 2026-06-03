@@ -1,10 +1,8 @@
-// Your House — live energy flow, weather-driven scene + node pop-ups.
-// Weather state (live + override) is owned by MainAppShell so the override
-// applied here also drives the Community tab. We just consume `weatherState`
-// as a prop. Active kind / temp / loading flags all come from there.
-const WEEK_SAVED = 8.40; // shared with Dashboard week figure
-const PRICES = { importP: 20, exportP: 10, p2p: 15 }; // pence / kWh
-const BATTERY_SOC = 40; // %
+// Home tab: shows the live energy flow for your house and lets you tap each icon for details.
+// The weather comes from the app shell so the same setting also drives the Community tab.
+const WEEK_SAVED = 8.40; // also shown on the Dashboard
+const PRICES = { importP: 20, exportP: 10, p2p: 15 }; // prices in pence per kWh
+const BATTERY_SOC = 40; // battery charge, as a percentage
 
 function sceneFor(kind) {
   if (kind === 'sunny') return {
@@ -37,8 +35,6 @@ const CANVAS_BG = {
 };
 
 function HouseTab({ onNavigate, highlight, onClearHighlight, weatherState }) {
-  // Weather state is owned by MainAppShell so the same override drives the
-  // Community tab's animation. We just consume it here.
   const { weather, override, setOverride, liveKind, activeKind, activeTemp,
           isLoading, hasError, isLive } = weatherState;
   const [tick, setTick] = React.useState(0);
@@ -46,8 +42,8 @@ function HouseTab({ onNavigate, highlight, onClearHighlight, weatherState }) {
   const [hovBanner, setHovBanner] = React.useState(false);
   const [hovSavings, setHovSavings] = React.useState(false);
   const [showOverride, setShowOverride] = React.useState(false);
-  const [popup, setPopup] = React.useState(null); // 'sun' | 'home' | 'grid' | 'community' | null
-  const [prices, setPrices] = React.useState(PRICES); // live Agile rates if Octopus reachable; else fallback
+  const [popup, setPopup] = React.useState(null); // which icon's pop-up is open, or null
+  const [prices, setPrices] = React.useState(PRICES); // live prices if available, otherwise the fallback above
 
   React.useEffect(() => {
     let raf;
@@ -68,9 +64,7 @@ function HouseTab({ onNavigate, highlight, onClearHighlight, weatherState }) {
     return () => clearTimeout(t);
   }, [highlight]);
 
-  // Octopus Agile — current half-hour import + export Agile rates for region C (London).
-  // Product codes rotate over time, so we resolve the active ones dynamically from
-  // /products/ and then fetch unit rates. P2P price = midpoint. Falls back to PRICES on failure.
+  // Get the live London electricity prices from Octopus. If anything fails, we keep the fallback prices.
   React.useEffect(() => {
     let cancelled = false;
     const now = new Date();
@@ -172,6 +166,7 @@ function HouseTab({ onNavigate, highlight, onClearHighlight, weatherState }) {
       </div>
 
       <div style={{ padding: '0 0 90px' }}>
+        {/* the energy-flow picture of the house */}
         <div style={{
           margin: '0 16px',
           height: 360, position: 'relative',
@@ -184,8 +179,7 @@ function HouseTab({ onNavigate, highlight, onClearHighlight, weatherState }) {
         }}>
           <HouseScene tick={tick} kind={activeKind} onTap={setPopup}/>
 
-          {/* Hint that map nodes are tappable. Sits inside the canvas, top-right;
-              non-interactive so taps still reach the underlying icons. */}
+          {/* small hint telling the user the icons can be tapped */}
           <div style={{
             position: 'absolute', top: 12, right: 12,
             padding: '5px 10px 5px 8px',
@@ -218,6 +212,7 @@ function HouseTab({ onNavigate, highlight, onClearHighlight, weatherState }) {
           )}
         </div>
 
+        {/* banner that explains what's happening and links to the Community tab */}
         <div style={{ padding: '20px 24px 0' }}>
           <button onClick={() => onNavigate && onNavigate('community', true)}
             onMouseEnter={() => setHovBanner(true)} onMouseLeave={() => setHovBanner(false)}
@@ -251,6 +246,7 @@ function HouseTab({ onNavigate, highlight, onClearHighlight, weatherState }) {
           </button>
         </div>
 
+        {/* the three live numbers: generating, using, and surplus/battery */}
         <div style={{ padding: '20px 24px 0' }}>
           <div className="t-label" style={{ color: 'var(--ink-500)', marginBottom: 10, fontSize: 13 }}>
             Live readouts
@@ -264,6 +260,7 @@ function HouseTab({ onNavigate, highlight, onClearHighlight, weatherState }) {
           </div>
         </div>
 
+        {/* link to the Dashboard showing money saved this week */}
         <div style={{ padding: '12px 24px 0' }}>
           <button onClick={() => onNavigate && onNavigate('dashboard')}
             onMouseEnter={() => setHovSavings(true)} onMouseLeave={() => setHovSavings(false)}
@@ -356,8 +353,7 @@ function WeatherPill({ isLoading, override, onTap }) {
 function OverridePanel({ override, onChange, liveKind, isLive, isLoading, hasError, onBack }) {
   const options = ['sunny', 'cloudy', 'rainy', 'night'];
   const sliderValue = options.indexOf(override || liveKind);
-  // If the override matches the live state, treat the panel as live — no visual
-  // difference, so calling it a "demo override" is misleading.
+  // only count it as a demo override if it's different from the real weather
   const effectiveOverride = override && override !== liveKind ? override : null;
 
   return (
@@ -505,9 +501,8 @@ function NodePopup({ kind, weatherKind, temp, scene, prices, onClose, onNavigate
         ? 'Your panels cover everything you use, with a small surplus for the battery and a neighbour.'
         : 'Your panels are powering your home, charging the battery, and sharing with neighbours.';
 
-  // Battery is one of: charging | discharging | holding (only first two used today,
-  // but the insight covers all three so a 'holding' state can be added without churn).
-  const battState = scene.batteryState; // 'charging' | 'discharging' | 'holding'
+  // pick the battery message and arrow based on whether it's charging or discharging
+  const battState = scene.batteryState;
   const batteryInsight = battState === 'discharging' ? 'Discharging — powering your home.'
                        : battState === 'holding'     ? 'Holding — battery is steady, no energy moving.'
                                                      : 'Charging — topping up from your panels.';
@@ -676,14 +671,8 @@ function NodePopup({ kind, weatherKind, temp, scene, prices, onClose, onNavigate
   );
 }
 
-// Layout: SUN top-center, HOUSE middle-center, then bottom row: BATTERY — GRID — COMMUNITY.
-// House nudged up + bottom row nudged down to give the flows breathing room.
-//
-// HEIGHT / SIZE TWEAKS — change these to resize bottom-row icons (1 = current size).
-// Examples:
-//   const BATT_SCALE = 0.85;  → battery is 15% smaller
-//   const GRID_SCALE = 1.2;   → grid pole is 20% taller / wider
-// Y-positions are also free knobs: bump BATT_Y / GRID_Y / COMM_Y to shift a single icon.
+// Draws the house picture: sun at the top, house in the middle, and battery,
+// grid and community along the bottom. The numbers below set where each one sits and its size.
 function HouseScene({ tick, kind, onTap }) {
   const HOUSE_X = 180, HOUSE_Y = 155;
   const BATT_X  = 55,  BATT_Y = 285;
@@ -693,12 +682,12 @@ function HouseScene({ tick, kind, onTap }) {
   const BATT_SCALE = 1.0;
   const GRID_SCALE = 0.9;
   const COMM_SCALE = 1.0;
-  const isOff = kind === 'rainy' || kind === 'night'; // no solar — battery + grid scenario
+  const isOff = kind === 'rainy' || kind === 'night'; // rainy or night means no solar
   const batteryState = isOff ? 'discharging' : 'charging';
-  const battFill   = batteryState === 'discharging' ? '#C29670' : '#86A893'; // muted amber / sage
-  const RAIN_BLUE  = '#2F5C84'; // darker blue for rainy flow particles
-  const NIGHT_BLUE = '#6F8FB8'; // lighter blue for visibility on dark night canvas
-  const GREY_FLOW  = '#7B8689'; // neutral grey for grid → community in cloudy
+  const battFill   = batteryState === 'discharging' ? '#C29670' : '#86A893';
+  const RAIN_BLUE  = '#2F5C84';
+  const NIGHT_BLUE = '#6F8FB8';
+  const GREY_FLOW  = '#7B8689';
   const flowBlue   = kind === 'night' ? NIGHT_BLUE : RAIN_BLUE;
   const labelColor = kind === 'night' ? '#E8EDF5' : 'var(--ink-900)';
 
@@ -745,9 +734,7 @@ function HouseScene({ tick, kind, onTap }) {
         </g>
       )}
 
-      {/* CLOUDS — small accent on cloudy, heavy on rainy. In both states the
-          cloud group is tappable as 'sun' so the spread-out left/right clouds
-          (which sit outside the sun's 100x100 hit area) still open the popup. */}
+      {/* CLOUDS — a few on cloudy days, more on rainy ones */}
       {kind === 'cloudy' && (
         <g style={tappableStyle} onClick={tap('sun')}>
           <rect x={SUN_X - 150} y={SUN_Y - 45} width="290" height="90" fill="transparent"/>
@@ -769,7 +756,7 @@ function HouseScene({ tick, kind, onTap }) {
       {/* RAIN */}
       {kind === 'rainy' && <Rain tick={tick}/>}
 
-      {/* NIGHT — moon + stars instead of sun */}
+      {/* NIGHT — moon and stars instead of the sun */}
       {kind === 'night' && (
         <g style={tappableStyle} onClick={tap('sun')}>
           <rect x={SUN_X - 60} y={SUN_Y - 50} width="120" height="100" fill="transparent"/>
@@ -786,7 +773,7 @@ function HouseScene({ tick, kind, onTap }) {
                     fill="#F4EFD8"
                     opacity={0.5 + 0.4 * Math.abs(Math.sin(tick * 1.3 + s.ph))}/>
           ))}
-          {/* moon: cream disc with crescent shadow cut by an offset dark disc */}
+          {/* moon */}
           <circle cx={SUN_X} cy={SUN_Y} r="34" fill="#1A2238" opacity="0.4"/>
           <circle cx={SUN_X} cy={SUN_Y} r="22" fill="#F0E9D2"/>
           <circle cx={SUN_X + 9} cy={SUN_Y - 3} r="19" fill="#1F2940"/>
@@ -825,7 +812,7 @@ function HouseScene({ tick, kind, onTap }) {
           <rect x="18"  y="-6"  width="3"  height="12" rx="1" fill="#2a3a34"/>
           <rect x="-19.5" y="-10" width={(BATTERY_SOC / 100) * 35} height="20" rx="1.5"
                 fill={battFill}/>
-          {/* tiny direction indicator */}
+          {/* + when charging, - when discharging */}
           <text x="0" y="3" textAnchor="middle" fontSize="10" fontWeight="700"
                 fill="#fff" fontFamily="Inter, Geist, sans-serif"
                 style={{ pointerEvents: 'none' }}>
@@ -868,51 +855,50 @@ function HouseScene({ tick, kind, onTap }) {
         <NodeLabel x={COMM_X} y={COMM_Y + 50 * COMM_SCALE} text="COMMUNITY" fill={labelColor}/>
       </g>
 
-      {/* FLOWS — depend on weather. `isOff` = no solar (rainy + night). */}
-      {/* sun → home (sunny + cloudy only) */}
+      {/* FLOWS — the moving lines of energy. Which ones show depends on the weather. */}
+      {/* sun to home */}
       {!isOff && (
         <FlowLine
           path={`M ${SUN_X} ${SUN_Y + 25} Q ${SUN_X} ${HOUSE_Y - 50} ${HOUSE_X} ${HOUSE_Y - 32}`}
           tick={tick} color="#FFB83D" speed={0.6} particles={3} dashed/>
       )}
 
-      {/* home → battery (sunny + cloudy, charging) — diagonal down-left */}
+      {/* home to battery (charging) */}
       {!isOff && (
         <FlowLine
           path={`M ${HOUSE_X - 30} ${HOUSE_Y + 30} Q ${HOUSE_X - 100} ${HOUSE_Y + 70} ${BATT_X + 22} ${BATT_Y - 18}`}
           tick={tick} color="#00A862" speed={0.6} particles={3}/>
       )}
 
-      {/* battery → home (rainy + night, discharging — battery never connects directly to community) */}
+      {/* battery to home (discharging) */}
       {isOff && (
         <FlowLine
           path={`M ${BATT_X + 22} ${BATT_Y - 18} Q ${HOUSE_X - 100} ${HOUSE_Y + 70} ${HOUSE_X - 30} ${HOUSE_Y + 30}`}
           tick={tick} color={flowBlue} speed={0.6} particles={3}/>
       )}
 
-      {/* home → community (sunny + cloudy, surplus) — diagonal down-right */}
+      {/* home to community (sharing surplus) */}
       {!isOff && (
         <FlowLine
           path={`M ${HOUSE_X + 30} ${HOUSE_Y + 30} Q ${HOUSE_X + 100} ${HOUSE_Y + 70} ${COMM_X - 30} ${COMM_Y - 10}`}
           tick={tick} color="#00A862" speed={0.6} particles={4}/>
       )}
 
-      {/* grid → community (cloudy, subtle grey supplement) */}
+      {/* grid to community */}
       {kind === 'cloudy' && (
         <FlowLine
           path={`M ${GRID_X + 22} ${GRID_Y - 8} Q ${(GRID_X + COMM_X) / 2} ${GRID_Y - 14} ${COMM_X - 26} ${COMM_Y - 8}`}
           tick={tick} color={GREY_FLOW} speed={0.6} particles={2} dashed/>
       )}
 
-      {/* grid → community (rainy + night) */}
+      {/* grid to community */}
       {isOff && (
         <FlowLine
           path={`M ${GRID_X + 22} ${GRID_Y - 8} Q ${(GRID_X + COMM_X) / 2} ${GRID_Y - 14} ${COMM_X - 26} ${COMM_Y - 8}`}
           tick={tick} color={flowBlue} speed={0.6} particles={3}/>
       )}
 
-      {/* Internal community redistribution — different pattern per weather. Slow + small. */}
-      {/* Sunny: middle house has plenty, sharing both ways (B → A and B → C). */}
+      {/* small trades between neighbours, which vary with the weather */}
       {kind === 'sunny' && (
         <FlowLine
           path={`M ${COMM_X - 4} ${COMM_Y - 6} Q ${COMM_X - 14} ${COMM_Y - 18} ${COMM_X - 22} ${COMM_Y + 2}`}
@@ -923,13 +909,11 @@ function HouseScene({ tick, kind, onTap }) {
           path={`M ${COMM_X + 4} ${COMM_Y - 6} Q ${COMM_X + 14} ${COMM_Y - 18} ${COMM_X + 22} ${COMM_Y + 4}`}
           tick={tick} color="#00A862" speed={0.4} particles={2}/>
       )}
-      {/* Cloudy: a single modest trade between two neighbours. */}
       {kind === 'cloudy' && (
         <FlowLine
           path={`M ${COMM_X - 4} ${COMM_Y - 6} Q ${COMM_X - 14} ${COMM_Y - 18} ${COMM_X - 22} ${COMM_Y + 2}`}
           tick={tick} color="#5C8E72" speed={0.4} particles={2}/>
       )}
-      {/* Rainy + night: incoming grid energy spreading across the community (left → right). */}
       {isOff && (
         <FlowLine
           path={`M ${COMM_X - 22} ${COMM_Y + 2} Q ${COMM_X} ${COMM_Y - 22} ${COMM_X + 22} ${COMM_Y + 4}`}

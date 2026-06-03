@@ -1,12 +1,14 @@
+"""
+Builds the case-study orderbook.csv from the raw price, demand and supply files.
+Each of the 10 users is given a role and a net-load profile is worked out for it.
+"""
 import pandas as pd
 import numpy as np
-import holidays 
+import holidays
 
-# --- CONFIGURATION: CASE STUDY SETUP ---
-# Define the role for each of the 10 IDs.
-# Options: "Prosumer", "Buyer", "Seller"
+# The role for each of the 10 user IDs (Prosumer, Buyer or Seller)
 ROLES = [
-    "Prosumer", # Fixed: ID 1 is user profile
+    "Prosumer", # ID 1 (the user)
     "Prosumer", # ID 2
     "Prosumer", # ID 3
     "Prosumer", # ID 4
@@ -15,40 +17,36 @@ ROLES = [
     "Buyer",    # ID 7
     "Seller",   # ID 8
     "Seller",   # ID 9
-    "Seller"    # Fixed: ID 10 is windfarm
+    "Seller"    # ID 10 (the wind farm)
 ]
 
 def generate_case_study():
     print("--- Starting Case Study Generator ---")
 
-    # 1. Validation
     if len(ROLES) != 10:
-        raise ValueError(f"Configuration Error: You defined {len(ROLES)} roles, but there are 9 profiles.")
+        raise ValueError(f"Configuration Error: You defined {len(ROLES)} roles, but there should be 10.")
 
-    # 2. Load Data
     print("Loading raw files...")
-    # We use dayfirst=True as per your fix
+    # dayfirst=True so DD/MM/YYYY dates are read correctly
     df_prices = pd.read_csv('prices.csv')
     df_demand = pd.read_csv('demand.csv')
     df_supply = pd.read_csv('supply.csv')
 
-    # Extract the Master Timestamp (from Prices file)
-    # We force convert to datetime to ensure sin/cos works
+    # Use the timestamp column from the prices file as the master timeline
     timestamp_col = pd.to_datetime(df_prices.iloc[:, 0], dayfirst=True)
-    
-    # 3. GENERATE CYCLIC FEATURES (Rounded to 4 decimals)
+
     print("Generating Time Features...")
-    
-    # Time of Day (24h)
+
+    # Time of day as sin/cos so the model sees it as a repeating cycle
     hours_float = timestamp_col.dt.hour + timestamp_col.dt.minute / 60.0
     day_sin = np.sin(2 * np.pi * hours_float / 24.0).round(4)
     day_cos = np.cos(2 * np.pi * hours_float / 24.0).round(4)
 
-    # Time of Year (Annual)
+    # Time of year as sin/cos
     year_sin = np.sin(2 * np.pi * timestamp_col.dt.dayofyear / 365.25).round(4)
     year_cos = np.cos(2 * np.pi * timestamp_col.dt.dayofyear / 365.25).round(4)
 
-    # Working Day Flag (UK)
+    # 1 on UK working days, 0 on weekends and holidays
     uk_holidays = holidays.UK()
     is_weekend = timestamp_col.dt.dayofweek >= 5
     is_holiday = timestamp_col.dt.date.apply(lambda d: d in uk_holidays)
@@ -62,61 +60,51 @@ def generate_case_study():
         'is_working_day': is_working_day
     })
 
-    # 4. CALCULATE PROFILES BASED ON ROLES
     print("Calculating profiles based on roles...")
-    
+
     profile_data = {}
 
-    # We loop through 0 to 9 (corresponding to columns 1 to 10 in raw files)
+    # Column i+1 in the raw files, since column 0 is the timestamp
     for i, role in enumerate(ROLES):
-        # We skip the first column (timestamp) using i+1
-        # .values ensures we calculate using raw numbers (no index mismatch errors)
         demand_vals = df_demand.iloc[:, i+1].values
         supply_vals = df_supply.iloc[:, i+1].values
-        
+
         column_name = f"{i+1}_{role}"
-        
+
         if role == "Prosumer":
-            # Demand - Supply
             profile_data[column_name] = demand_vals - supply_vals
-            
+
         elif role == "Buyer":
-            # Just Demand
             profile_data[column_name] = demand_vals
-            
+
         elif role == "Seller":
-            # Negative Supply (Exporting)
             profile_data[column_name] = -supply_vals
-            
+
         else:
             raise ValueError(f"Unknown role: {role}")
 
-    # Convert dictionary to DataFrame
     df_profiles = pd.DataFrame(profile_data)
 
-    # 4.5 CALCULATE NET COMMUNITY (Excluding Agent 1)
+    # Net load of the rest of the community, excluding the user (agent 1)
     print("Calculating Community Net Load (excluding Agent 1)...")
-    # We sum columns 2 through 10 (indices 1 to the end) to exclude our target agent
     raw_community_net = df_profiles.iloc[:, 1:].sum(axis=1)
-    # Max-Absolute Normalization to keep 0 as true balance
+    # Scale to [-1, 1] while keeping 0 as the balance point
     max_abs_net = raw_community_net.abs().max()
     norm_community_net = (raw_community_net / max_abs_net).round(4)
 
-    # 5. ASSEMBLE FINAL DATAFRAME
     print("Assembling final file...")
-    
-    # Get Import/Export Prices and Spread (Columns 1, 2, and 3)
+
+    # Import price, export price and spread
     df_price_data = df_prices.iloc[:, 1:4]
 
     final_df = pd.concat([
-        timestamp_col.rename("timestamp"),          # 1. Time
-        df_features,                                # 2. Sin/Cos Features + Working Day
-        df_price_data,                              # 3. Prices + Spread
-        norm_community_net.rename('net_community'), # 4. Community Net Signal
-        df_profiles                                 # 5. The 10 Generated Profiles
+        timestamp_col.rename("timestamp"),
+        df_features,
+        df_price_data,
+        norm_community_net.rename('net_community'),
+        df_profiles
     ], axis=1)
 
-    # 6. Save
     output_filename = 'orderbook.csv'
     final_df.to_csv(output_filename, index=False)
     

@@ -1,4 +1,4 @@
-// Screen 6 — What happens next
+// Onboarding step 6: confirm setup is done and show what happens next.
 function Screen6_AllSet({ onNext, onBack }) {
   return (
     <PwScreen step={5} onBack={onBack}>
@@ -9,7 +9,7 @@ function Screen6_AllSet({ onNext, onBack }) {
         size={36}
       />
 
-      {/* Projected numbers */}
+      {/* Projected numbers for the first month */}
       <div style={{ marginTop: 24 }}>
         <div className="t-label" style={{ color: 'var(--ink-500)', marginBottom: 12, fontSize: 13 }}>
           Your first month, projected
@@ -43,7 +43,6 @@ function Screen6_AllSet({ onNext, onBack }) {
         </div>
       </div>
 
-      {/* What happens next */}
       <div style={{ marginTop: 28 }}>
         <div className="t-label" style={{ color: 'var(--ink-500)', marginBottom: 12, fontSize: 13 }}>
           What happens next

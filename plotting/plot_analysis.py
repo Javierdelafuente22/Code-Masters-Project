@@ -1,26 +1,11 @@
 """
-PPO Analysis Plots — All plots in one file.
-
-Plots:
-    1.  Action bar chart by hour
-    2.  Action heatmap across all test days
-    3.  Community strategy averaged by spread regime (high/low)
-    4.  Community strategy for individual sample days (high/low)
-    5.  P2P volume comparison (no battery vs PPO) — bars only
-    6.  Daily savings distribution (original: histogram + scatter)
-    6b. Daily savings v2 (pie chart + scatter with trend line)
-    7a. KPI: User savings bar chart
-    7b. KPI: Community savings bar chart
-
-Usage:
-    python plot_analysis.py
+Makes all the plots for the PPO analysis results.
 """
 
 import os
 import sys
 
-# Allow `python plotting/plot_analysis.py` to find sibling packages (rl_env,
-# utils, etc.) by putting the project root on sys.path before they're imported.
+# Add the project root to the path so we can import rl_env and utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
@@ -30,21 +15,16 @@ from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
 from matplotlib.colors import LinearSegmentedColormap
 
-# Colorblind-safe diverging colormap built from the Wong palette.
-# Vermillion (discharge / negative) -> white (hold / zero) -> bluish green (charge / positive).
-# Matches the discrete legend swatches used in plot_action_bars / plot_action_heatmap.
+# Colourblind-friendly colour scale: discharge -> hold -> charge
 WONG_DIVERGING = LinearSegmentedColormap.from_list(
     'wong_diverging', ['#D55E00', '#FFFFFF', '#009E73']
 )
 
-from rl_env.p2p_energy_env import P2PEnergyTradingEnv, MAX_RATE, TARGET_AGENT, OTHER_AGENTS, MARKET_FEATURES
+from rl_env.p2p_energy_env import P2PEnergyTradingEnv, MAX_RATE, TARGET_AGENT, MARKET_FEATURES
 from rl_env.battery import Battery
-from rl_env.rl_orderbook_simp import clear_market_for_agent
 from utils.data_loader import load_and_split
 
-# ============================================================
-# CONFIG
-# ============================================================
+# Settings
 DATA_PATH = "data/orderbook.csv"
 MODEL_PATH = "orderbook_results/ppo/training/ppo_p2p_trading.zip"
 VEC_NORM_PATH = "orderbook_results/ppo/training/vec_normalize.pkl"
@@ -56,7 +36,6 @@ SHADING_OVERRIDES = {
     0: {11: 'charge'},
 }
 
-SAVINGS_SHIFT = 13.32
 P2P_INCREASE_PCT = 2.5
 P2P_VOLUMES_CSV = os.path.join(OUTPUT_DIR, "p2p_volumes_hourly.csv")
 INFERENCE_CSV = os.path.join(OUTPUT_DIR, "ppo_inference_data.csv")
@@ -64,10 +43,8 @@ INFERENCE_CSV = os.path.join(OUTPUT_DIR, "ppo_inference_data.csv")
 STRATEGY_LEGEND_SIZE = 11
 
 
-# ============================================================
-# Inference
-# ============================================================
 def run_inference(df_test, model, obs_rms, clip_obs, epsilon):
+    """Run the trained PPO agent over the test days and record what it did each hour."""
     battery = Battery(capacity=1.0, max_rate=0.4, efficiency=0.95, initial_soc=0.0)
     market_features_arr = df_test[MARKET_FEATURES].values.astype(np.float32)
     raw_demands = df_test[TARGET_AGENT].values.astype(np.float32)
@@ -109,32 +86,6 @@ def run_inference(df_test, model, obs_rms, clip_obs, epsilon):
     return pd.DataFrame(records)
 
 
-def compute_volumes(df_test, results_df):
-    others_demands = df_test[OTHER_AGENTS].values.astype(np.float32)
-    import_prices = df_test['import_price'].values.astype(np.float32)
-    export_prices = df_test['export_price'].values.astype(np.float32)
-    ppo_p2p, ppo_grid, ppo_cost = [], [], []
-    nobatt_p2p, nobatt_grid, nobatt_cost = [], [], []
-    for _, row in results_df.iterrows():
-        idx = int(row['day']) * 24 + int(row['hour'])
-        others = others_demands[idx]
-        imp = float(import_prices[idx])
-        exp = float(export_prices[idx])
-        cost_ppo, p2p_ppo, grid_ppo = clear_market_for_agent(row['modified_demand'], others, imp, exp)
-        ppo_p2p.append(p2p_ppo); ppo_grid.append(grid_ppo); ppo_cost.append(cost_ppo)
-        cost_nb, p2p_nb, grid_nb = clear_market_for_agent(row['raw_demand'], others, imp, exp)
-        nobatt_p2p.append(p2p_nb); nobatt_grid.append(grid_nb); nobatt_cost.append(cost_nb)
-    results_df = results_df.copy()
-    results_df['ppo_p2p_vol'] = ppo_p2p
-    results_df['ppo_grid_vol'] = ppo_grid
-    results_df['ppo_cost'] = ppo_cost
-    results_df['nobatt_p2p_vol'] = nobatt_p2p
-    results_df['nobatt_grid_vol'] = nobatt_grid
-    results_df['nobatt_cost'] = nobatt_cost
-    results_df['daily_savings'] = results_df['nobatt_cost'] - results_df['ppo_cost']
-    return results_df
-
-
 def _get_spread_regimes(df):
     day_spreads = df.groupby('day')['spread'].mean()
     terciles = day_spreads.quantile([0.33, 0.66])
@@ -143,29 +94,8 @@ def _get_spread_regimes(df):
     return high_days, low_days
 
 
-def _get_daily_savings(df):
-    daily = df.groupby('day').agg(
-        total_savings=('daily_savings', 'sum'),
-        total_nobatt_cost=('nobatt_cost', 'sum'),
-        avg_net_community=('net_community', 'mean'),
-        avg_spread=('spread', 'mean'),
-    )
-    daily['savings_pct_raw'] = (daily['total_savings'] / daily['total_nobatt_cost'].abs()) * 100
-    daily['savings_pct'] = daily['savings_pct_raw'] + SAVINGS_SHIFT
-    daily['savings_pct'] = daily['savings_pct'].clip(-50, 100)
-    terciles = daily['avg_net_community'].quantile([0.33, 0.66])
-    daily['solar_regime'] = pd.cut(
-        daily['avg_net_community'],
-        bins=[-np.inf, terciles[0.33], terciles[0.66], np.inf],
-        labels=['High solar', 'Medium solar', 'Low solar']
-    )
-    return daily
-
-
-# ============================================================
-# Plot 1: Action bars
-# ============================================================
 def plot_action_bars(df, output_path):
+    """Bar chart of the average battery action for each hour of the day."""
     fig, ax = plt.subplots(figsize=(14, 5))
     hourly_mean = df.groupby('hour')['action_power'].mean()
     hourly_std = df.groupby('hour')['action_power'].std()
@@ -193,10 +123,8 @@ def plot_action_bars(df, output_path):
     print(f"  plot_action_bars saved")
 
 
-# ============================================================
-# Plot 2: Action heatmap
-# ============================================================
 def plot_action_heatmap(df, output_path):
+    """Heatmap of the battery action per hour across all test days."""
     fig, ax = plt.subplots(figsize=(14, 6))
     n_days = df['day'].max() + 1
     action_matrix = np.zeros((n_days, 24))
@@ -223,10 +151,8 @@ def plot_action_heatmap(df, output_path):
     print(f"  plot_action_heatmap saved")
 
 
-# ============================================================
-# Plot 3: Community strategy (averaged — high/low)
-# ============================================================
 def plot_community_strategy(df, output_path):
+    """Average battery strategy split into high and low price spread days."""
     high_days, low_days = _get_spread_regimes(df)
     regimes = [('High spread days', high_days), ('Low spread days', low_days)]
 
@@ -284,10 +210,8 @@ def plot_community_strategy(df, output_path):
     print(f"  plot_community_strategy saved")
 
 
-# ============================================================
-# Plot 4: Community strategy (individual days — high/low)
-# ============================================================
 def plot_community_strategy_individual(df, output_path, sample_days=None):
+    """Battery strategy for one sample high spread day and one low spread day."""
     if sample_days is None:
         day_spreads = df.groupby('day')['spread'].mean()
         terciles = day_spreads.quantile([0.33, 0.66])
@@ -339,10 +263,8 @@ def plot_community_strategy_individual(df, output_path, sample_days=None):
     print(f"  plot_community_individual saved")
 
 
-# ============================================================
-# Plot 5: P2P volume — bars only, no SoC line
-# ============================================================
 def plot_p2p_volume(output_path):
+    """Bar chart comparing P2P traded volume per hour: no battery vs PPO."""
     print(f"  Reading P2P volumes from: {P2P_VOLUMES_CSV}")
     vol_df = pd.read_csv(P2P_VOLUMES_CSV)
     hours = vol_df['hour'].values
@@ -370,98 +292,8 @@ def plot_p2p_volume(output_path):
     print(f"  plot_p2p_volume saved")
 
 
-# ============================================================
-# Plot 6a: Daily savings histogram by solar regime
-# ============================================================
-def plot_daily_savings_histogram(df, output_path):
-    daily = _get_daily_savings(df)
-    colors = {'High solar': '#009E73', 'Medium solar': '#E69F00', 'Low solar': '#D55E00'}
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    for regime in ['High solar', 'Medium solar', 'Low solar']:
-        subset = daily[daily['solar_regime'] == regime]['savings_pct']
-        ax.hist(subset.values, bins=20, alpha=0.5, color=colors[regime],
-                label=regime, edgecolor='white')
-    ax.axvline(x=daily['savings_pct'].mean(), color='black', linestyle='--',
-               linewidth=1, alpha=0.5, label=f'Mean: {daily["savings_pct"].mean():.1f}%')
-    ax.set_xlabel('Daily user savings (%)')
-    ax.set_ylabel('Number of days')
-    ax.set_title('Distribution of Daily Savings by Community Solar Production',
-                 fontsize=13, fontweight='bold')
-    ax.legend(loc='upper right', fontsize=STRATEGY_LEGEND_SIZE)
-    ax.grid(True, alpha=0.2, axis='y')
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches='tight')
-    plt.close()
-    print(f"  plot_daily_savings_histogram saved")
-
-
-# ============================================================
-# Plot 6b: Daily savings vs price spread with trend line
-# ============================================================
-def plot_daily_savings_scatter(df, output_path):
-    daily = _get_daily_savings(df)
-    colors = {'High solar': '#009E73', 'Medium solar': '#E69F00', 'Low solar': '#D55E00'}
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    for regime in ['High solar', 'Medium solar', 'Low solar']:
-        subset = daily[daily['solar_regime'] == regime]
-        ax.scatter(subset['avg_spread'], subset['savings_pct'],
-                   c=colors[regime], alpha=0.6, s=40, label=regime, edgecolors='white')
-
-    x_all = daily['avg_spread'].values
-    y_all = daily['savings_pct'].values
-    mask = ~(np.isnan(x_all) | np.isnan(y_all))
-    z = np.polyfit(x_all[mask], y_all[mask], 1)
-    p = np.poly1d(z)
-    x_line = np.linspace(x_all[mask].min(), x_all[mask].max(), 100)
-    ax.plot(x_line, p(x_line), color='black', linewidth=2, linestyle='--', alpha=0.6,
-            label='Linear trend')
-
-    ax.set_xlabel('Average daily spread (normalised)')
-    ax.set_ylabel('Daily user savings (%)')
-    ax.set_title('Daily Savings vs Price Spread by Community Solar Production',
-                 fontsize=13, fontweight='bold')
-    ax.legend(loc='upper right', fontsize=STRATEGY_LEGEND_SIZE)
-    ax.grid(True, alpha=0.2)
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches='tight')
-    plt.close()
-    print(f"  plot_daily_savings_scatter saved")
-
-
-# ============================================================
-# Plot 6c: Daily savings boxplot by solar regime
-# ============================================================
-def plot_daily_savings_boxplot(df, output_path):
-    daily = _get_daily_savings(df)
-    colors_list = ['#009E73', '#E69F00', '#D55E00']
-    regimes = ['High solar', 'Medium solar', 'Low solar']
-
-    fig, ax = plt.subplots(figsize=(8, 6))
-    box_data = [daily[daily['solar_regime'] == r]['savings_pct'].dropna().values for r in regimes]
-    bp = ax.boxplot(box_data, labels=regimes, patch_artist=True, widths=0.5,
-                    medianprops=dict(color='black', linewidth=2),
-                    whiskerprops=dict(linewidth=1.2),
-                    capprops=dict(linewidth=1.2))
-    for patch, c in zip(bp['boxes'], colors_list):
-        patch.set_facecolor(c)
-        patch.set_alpha(0.7)
-
-    ax.set_ylabel('Daily user savings (%)')
-    ax.set_title('Daily Savings Distribution by Community Solar Availability',
-                 fontsize=13, fontweight='bold')
-    ax.grid(True, alpha=0.2, axis='y')
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches='tight')
-    plt.close()
-    print(f"  plot_daily_savings_boxplot saved")
-
-
-# ============================================================
-# Plot 7a: KPI — User savings bar chart
-# ============================================================
 def plot_kpi_user_savings(output_path):
+    """Bar chart comparing user savings across the different strategies."""
     methods = ['Lower Bound', 'Q-learning', 'Heuristic', 'SAC', 'PPO', 'Upper Bound\n(LP)']
     values =  [16.66, 17.31, 20.08, 23.43, 24.22, 30.49]
     bar_colors = ['#94a3b8', '#94a3b8', '#94a3b8', '#94a3b8', '#009E73', '#94a3b8']
@@ -492,7 +324,7 @@ def plot_kpi_user_savings(output_path):
     ]
     ax.legend(handles=legend_elements, loc='upper left', fontsize=10)
 
-    increase = values[4] - values[0]  # PPO - Lower Bound
+    increase = values[4] - values[0]  # PPO minus Lower Bound
     ax.text(0.02, 0.82, f'Total user savings increase: +{increase:.1f}%',
             transform=ax.transAxes, ha='left', va='top', fontsize=11,
             bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='gray', alpha=0.8))
@@ -503,10 +335,8 @@ def plot_kpi_user_savings(output_path):
     print(f"  plot_kpi_user_savings saved")
 
 
-# ============================================================
-# Plot 7b: KPI — Community savings bar chart
-# ============================================================
 def plot_kpi_community_savings(output_path):
+    """Bar chart comparing community savings across the different strategies."""
     methods = ['Lower Bound', 'Q-learning', 'Heuristic', 'SAC', 'PPO', 'Upper Bound\n(LP)']
     values =  [8.07, 8.21, 8.95, 13.54, 14.01, 19.07]
     bar_colors = ['#94a3b8', '#94a3b8', '#94a3b8', '#94a3b8', '#009E73', '#94a3b8']
@@ -537,7 +367,7 @@ def plot_kpi_community_savings(output_path):
     ]
     ax.legend(handles=legend_elements, loc='upper left', fontsize=10)
 
-    increase = values[4] - values[0]  # PPO - Lower Bound
+    increase = values[4] - values[0]  # PPO minus Lower Bound
     ax.text(0.02, 0.82, f'Total community savings increase: +{increase:.1f}%',
             transform=ax.transAxes, ha='left', va='top', fontsize=11,
             bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='gray', alpha=0.8))
@@ -548,10 +378,8 @@ def plot_kpi_community_savings(output_path):
     print(f"  plot_kpi_community_savings saved")
 
 
-# ============================================================
-# Plot 7c: KPI — Peer trades bar chart
-# ============================================================
 def plot_kpi_peer_trades(output_path):
+    """Bar chart comparing peer trades across the different strategies."""
     methods = ['Lower Bound', 'Q-learning', 'Heuristic', 'SAC', 'PPO', 'Upper Bound\n(LP)']
     values =  [25.82, 25.90, 26.13, 27.78, 28.32, 32.36]
     bar_colors = ['#94a3b8', '#94a3b8', '#94a3b8', '#94a3b8', '#009E73', '#94a3b8']
@@ -582,7 +410,7 @@ def plot_kpi_peer_trades(output_path):
     ]
     ax.legend(handles=legend_elements, loc='upper left', fontsize=10)
 
-    increase = values[4] - values[0]  # PPO - Lower Bound
+    increase = values[4] - values[0]  # PPO minus Lower Bound
     ax.text(0.02, 0.82, f'Total peer trades increase: +{increase:.1f}%',
             transform=ax.transAxes, ha='left', va='top', fontsize=11,
             bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='gray', alpha=0.8))
@@ -593,9 +421,6 @@ def plot_kpi_peer_trades(output_path):
     print(f"  plot_kpi_peer_trades saved")
 
 
-# ============================================================
-# Main
-# ============================================================
 if __name__ == "__main__":
     print("=" * 55)
     print("PPO ANALYSIS — All Plots")
@@ -626,9 +451,6 @@ if __name__ == "__main__":
         results_df.to_csv(INFERENCE_CSV, index=False)
         print(f"  Saved to: {INFERENCE_CSV}")
 
-    print("\nComputing P2P/grid volumes...")
-    results_with_volumes = compute_volumes(df_test, results_df)
-
     print("\nGenerating plots...")
     plot_action_bars(results_df, os.path.join(OUTPUT_DIR, 'plot_action_bars.png'))
     plot_action_heatmap(results_df, os.path.join(OUTPUT_DIR, 'plot_action_heatmap.png'))
@@ -641,12 +463,6 @@ if __name__ == "__main__":
     else:
         print(f"\n  Skipping P2P volume plot — {P2P_VOLUMES_CSV} not found.")
 
-    plot_daily_savings_histogram(results_with_volumes,
-                                  os.path.join(OUTPUT_DIR, 'plot_daily_savings_histogram.png'))
-    plot_daily_savings_scatter(results_with_volumes,
-                               os.path.join(OUTPUT_DIR, 'plot_daily_savings_scatter.png'))
-    plot_daily_savings_boxplot(results_with_volumes,
-                               os.path.join(OUTPUT_DIR, 'plot_daily_savings_boxplot.png'))
     plot_kpi_user_savings(os.path.join(OUTPUT_DIR, 'plot_kpi_user_savings.png'))
     plot_kpi_community_savings(os.path.join(OUTPUT_DIR, 'plot_kpi_community_savings.png'))
     plot_kpi_peer_trades(os.path.join(OUTPUT_DIR, 'plot_kpi_peer_trades.png'))

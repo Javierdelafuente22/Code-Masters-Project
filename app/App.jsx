@@ -1,4 +1,4 @@
-// Main App shell — houses the 5-tab app in an iOS frame with annotation rails.
+// The 5-tab app shown in a phone frame, with side rails for notes.
 const APP_TWEAKS = /*EDITMODE-BEGIN*/{
   "startTab": "dashboard",
   "houseMode": "sunny",
@@ -14,7 +14,7 @@ function PeerwayMainApp() {
 
   React.useEffect(() => localStorage.setItem('pw_main_tab', tab), [tab]);
 
-  // Tweaks protocol
+  // Listen for the edit-mode on/off messages from the parent page.
   React.useEffect(() => {
     const onMsg = (e) => {
       const d = e.data || {};
@@ -105,6 +105,7 @@ function PeerwayMainApp() {
   );
 }
 
+// Left rail: list of the five tabs.
 function AppLeftRail({ active }) {
   const tabs = [
     { id: 'home',      label: 'Home',      sub: 'Live energy flow' },
@@ -156,6 +157,7 @@ function AppLeftRail({ active }) {
   );
 }
 
+// Right rail: short design notes that change with the current tab.
 function AppNotesRail({ tab }) {
   const notes = {
     dashboard: {
@@ -242,6 +244,7 @@ function AppNotesRail({ tab }) {
   );
 }
 
+// Little panel for switching the start tab while in edit mode.
 function AppTweaksPanel({ tweaks, onChange, tab, setTab }) {
   return (
     <div style={{

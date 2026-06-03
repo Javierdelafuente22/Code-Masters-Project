@@ -1,4 +1,6 @@
-// Loading state — used between screens when the app is "thinking"
+// Shared loading and error screens.
+
+// Loading screen shown while the app connects.
 function LoadingState({ label = 'Connecting securely', sublabel = 'This usually takes a few seconds' }) {
   return (
     <div className="pw-screen pw-fade-in" style={{
@@ -41,7 +43,7 @@ function LoadingState({ label = 'Connecting securely', sublabel = 'This usually 
         {sublabel}
       </div>
 
-      {/* Skeleton steps — subtle activity indicator */}
+      {/* Step list showing progress */}
       <div style={{
         marginTop: 36, width: '100%', maxWidth: 260,
         display: 'flex', flexDirection: 'column', gap: 10,
@@ -79,7 +81,7 @@ function LoadingState({ label = 'Connecting securely', sublabel = 'This usually 
   );
 }
 
-// Error state — meter connection failed, with recovery path
+// Error screen shown when the meter connection fails.
 function ErrorState({ onRetry, onSkip }) {
   return (
     <PwScreen step={0}>
@@ -109,7 +111,7 @@ function ErrorState({ onRetry, onSkip }) {
           Your provider's gateway didn't respond in time. This usually clears up in a few minutes.
         </p>
 
-        {/* Diagnostic box */}
+        {/* Error details box */}
         <div style={{
           marginTop: 24, width: '100%',
           padding: '12px 14px',

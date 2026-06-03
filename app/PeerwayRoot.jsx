@@ -1,18 +1,9 @@
-// Top-level orchestrator: onboarding -> main app.
-//
-// Behavior (per user spec):
-//   • On a fresh page load (refresh, new tab, "close fake app & open again"),
-//     run onboarding from screen 1.
-//   • Once onboarding is complete in this session, the user can't go back —
-//     they're in the main app until they reload.
-//
-// We use sessionStorage (cleared when the tab/PWA is closed) AND a fresh-load
-// reset, so every refresh starts at onboarding regardless of session state.
+// Shows onboarding first, then the main app.
+// Every page refresh starts again at onboarding.
 
 function PeerwayRoot() {
-  // Always start fresh on every page load. Clearing here means refresh = onboarding.
   const [phase, setPhase] = React.useState(() => {
-    // Wipe any stale completion flag on every fresh JS load.
+    // Clear the old flag so a refresh always begins with onboarding.
     try { sessionStorage.removeItem('pw_onboarded'); } catch (e) {}
     return 'onboarding';
   });

@@ -1,11 +1,7 @@
 
-// iOS.jsx — Simplified iOS 26 (Liquid Glass) device frame
-// Based on the iOS 26 UI Kit + Figma status bar spec. No assets, no deps.
-// Exports: IOSDevice, IOSStatusBar, IOSNavBar, IOSGlassPill, IOSList, IOSListRow, IOSKeyboard
+// Wraps the app in an iPhone-style frame, with status bar, nav bar and keyboard.
 
-// ─────────────────────────────────────────────────────────────
-// Status bar
-// ─────────────────────────────────────────────────────────────
+// Status bar (time, signal, wifi, battery).
 function IOSStatusBar({ dark = false, time = '9:41' }) {
   const c = dark ? '#fff' : '#000';
   return (
@@ -42,9 +38,7 @@ function IOSStatusBar({ dark = false, time = '9:41' }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Liquid glass pill — blur + tint + shine
-// ─────────────────────────────────────────────────────────────
+// Frosted-glass pill used for the nav buttons.
 function IOSGlassPill({ children, dark = false, style = {} }) {
   return (
     <div style={{
@@ -78,9 +72,7 @@ function IOSGlassPill({ children, dark = false, style = {} }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Navigation bar — glass pills + large title
-// ─────────────────────────────────────────────────────────────
+// Navigation bar with a large title and glass buttons.
 function IOSNavBar({ title = 'Title', dark = false, trailingIcon = true }) {
   const muted = dark ? 'rgba(255,255,255,0.6)' : '#404040';
   const text = dark ? '#fff' : '#000';
@@ -126,9 +118,7 @@ function IOSNavBar({ title = 'Title', dark = false, trailingIcon = true }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Grouped list (inset card, r:26) + row (52px)
-// ─────────────────────────────────────────────────────────────
+// One row inside a grouped list.
 function IOSListRow({ title, detail, icon, chevron = true, isLast = false, dark = false }) {
   const text = dark ? '#fff' : '#000';
   const sec = dark ? 'rgba(235,235,245,0.6)' : 'rgba(60,60,67,0.6)';
@@ -164,6 +154,7 @@ function IOSListRow({ title, detail, icon, chevron = true, isLast = false, dark 
   );
 }
 
+// Grouped list card that holds the rows.
 function IOSList({ header, children, dark = false }) {
   const hc = dark ? 'rgba(235,235,245,0.6)' : 'rgba(60,60,67,0.6)';
   const bg = dark ? '#1C1C1E' : '#fff';
@@ -184,9 +175,7 @@ function IOSList({ header, children, dark = false }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Device frame
-// ─────────────────────────────────────────────────────────────
+// The phone frame: rounded screen, dynamic island and home indicator.
 function IOSDevice({
   children, width = 402, height = 874, dark = false,
   title, keyboard = false,
@@ -201,10 +190,8 @@ function IOSDevice({
     return () => clearInterval(id);
   }, []);
 
-  // Auto scale-down so the phone frame fits inside short laptop viewports
-  // without cropping. Cap at 1 so we never blow it up beyond its natural size.
-  // Mobile renders bypass IOSDevice entirely (full-screen), so this only
-  // affects desktop/laptop browsers.
+  // Shrink the frame so it fits smaller laptop screens, but never make it
+  // bigger than its real size. (Mobile skips this frame anyway.)
   const [scale, setScale] = React.useState(1);
   React.useEffect(() => {
     const compute = () => {
@@ -265,15 +252,13 @@ function IOSDevice({
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Keyboard — iOS 26 liquid glass
-// ─────────────────────────────────────────────────────────────
+// Fake on-screen keyboard.
 function IOSKeyboard({ dark = false }) {
   const glyph = dark ? 'rgba(255,255,255,0.7)' : '#595959';
   const sugg = dark ? 'rgba(255,255,255,0.6)' : '#333';
   const keyBg = dark ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.85)';
 
-  // special-key icons
+  // icons for the shift, delete and return keys
   const icons = {
     shift: <svg width="19" height="17" viewBox="0 0 19 17"><path d="M9.5 1L1 9.5h4.5V16h8V9.5H18L9.5 1z" fill={glyph}/></svg>,
     del: <svg width="23" height="17" viewBox="0 0 23 17"><path d="M7 1h13a2 2 0 012 2v11a2 2 0 01-2 2H7l-6-7.5L7 1z" fill="none" stroke={glyph} strokeWidth="1.6" strokeLinejoin="round"/><path d="M10 5l7 7M17 5l-7 7" stroke={glyph} strokeWidth="1.6" strokeLinecap="round"/></svg>,
@@ -307,7 +292,7 @@ function IOSKeyboard({ dark = false }) {
         ? '0 -2px 20px rgba(0,0,0,0.09)'
         : '0 -1px 6px rgba(0,0,0,0.018), 0 -3px 20px rgba(0,0,0,0.012)',
     }}>
-      {/* liquid glass bg — same recipe as nav pills */}
+      {/* frosted-glass background */}
       <div style={{
         position: 'absolute', inset: 0, borderRadius: 27,
         backdropFilter: 'blur(12px) saturate(180%)',
@@ -363,7 +348,7 @@ function IOSKeyboard({ dark = false }) {
         </div>
       </div>
 
-      {/* bottom spacer (emoji+mic area, icons omitted) */}
+      {/* empty space where the emoji/mic row would be */}
       <div style={{ height: 56, width: '100%', position: 'relative' }} />
     </div>
   );

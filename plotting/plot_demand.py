@@ -1,12 +1,5 @@
 """
-Demand profile plots.
-
-Plots:
-    1. Daily consumption  - one day, all 9 SSEN profiles, by hour
-    2. Yearly consumption - 3 SSEN profiles, weekly-mean across 2 years
-
-Usage:
-    python plotting/plot_demand.py
+Makes the demand profile plots (daily and yearly consumption).
 """
 
 import os
@@ -14,16 +7,14 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
-# ============================================================
-# CONFIG
-# ============================================================
+# Settings
 DATA_PATH = "data/demand.csv"
 OUTPUT_DIR = "data/plots"
 
-# Daily plot: mid-winter weekday - pronounced evening peak.
+# A mid-winter weekday with a clear evening peak
 DAILY_DATE = "2024-01-23"
 
-# Yearly plot: first three SSEN profiles, weekly-mean aggregation.
+# Three profiles used for the yearly plot
 YEARLY_PROFILES = [
     "SSEN-2506608140",
     "SSEN-2803012140",
@@ -31,20 +22,17 @@ YEARLY_PROFILES = [
 ]
 YEARLY_RESAMPLE = "W"
 
-# Wong (Bang Wong, Nature Methods 2011) provides 8 colorblind-safe colors;
-# we need 9 for the SSEN profiles. We use 7 Wong colors plus two from Paul
-# Tol's muted palette (wine + indigo) instead of Wong's black, for more
-# visual variety while staying colorblind-safe.
+# Nine colourblind-friendly colours, one per SSEN profile
 DAILY_COLORS = [
-    '#009E73',  # bluish green        (Wong)
-    '#D55E00',  # vermillion          (Wong)
-    '#0072B2',  # blue                (Wong)
-    '#E69F00',  # orange              (Wong)
-    '#CC79A7',  # reddish purple      (Wong)
-    '#56B4E9',  # sky blue            (Wong)
-    '#F0E442',  # yellow              (Wong)
-    '#882255',  # wine                (Tol muted)
-    '#332288',  # indigo              (Tol muted)
+    '#009E73',
+    '#D55E00',
+    '#0072B2',
+    '#E69F00',
+    '#CC79A7',
+    '#56B4E9',
+    '#F0E442',
+    '#882255',
+    '#332288',
 ]
 
 YEARLY_COLORS = ['#009E73', '#0072B2', '#E69F00']
@@ -63,10 +51,8 @@ def load_demand(path):
     return df
 
 
-# ============================================================
-# Plot 1: Daily consumption - all 9 SSEN profiles
-# ============================================================
 def plot_daily_consumption(df, output_path):
+    """Plot one day of demand for all 9 SSEN profiles, hour by hour."""
     day = pd.Timestamp(DAILY_DATE)
     day_df = df.loc[day.strftime('%Y-%m-%d')]
     if len(day_df) != 24:
@@ -94,10 +80,8 @@ def plot_daily_consumption(df, output_path):
     print(f"  plot_daily_consumption saved -> {output_path}")
 
 
-# ============================================================
-# Plot 2: Yearly consumption - 3 profiles, weekly mean
-# ============================================================
 def plot_yearly_consumption(df, output_path):
+    """Plot the weekly-average demand over the year for 3 profiles."""
     weekly = df[YEARLY_PROFILES].resample(YEARLY_RESAMPLE).mean()
 
     fig, ax = plt.subplots(figsize=(7, 4.5))
@@ -123,10 +107,8 @@ def plot_yearly_consumption(df, output_path):
     print(f"  plot_yearly_consumption saved -> {output_path}")
 
 
-# ============================================================
-# Plot 3: Yearly consumption - all 9 SSEN profiles, weekly mean
-# ============================================================
 def plot_yearly_consumption_all(df, output_path):
+    """Plot the weekly-average demand over the year for all 9 profiles."""
     weekly = df[SSEN_COLUMNS].resample(YEARLY_RESAMPLE).mean()
 
     fig, ax = plt.subplots(figsize=(7, 4.5))
@@ -152,9 +134,6 @@ def plot_yearly_consumption_all(df, output_path):
     print(f"  plot_yearly_consumption_all saved -> {output_path}")
 
 
-# ============================================================
-# Main
-# ============================================================
 if __name__ == "__main__":
     print("=" * 55)
     print("DEMAND PROFILE PLOTS")

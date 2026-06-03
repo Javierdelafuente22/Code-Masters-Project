@@ -1,4 +1,4 @@
-// Shared primitives for Peerway onboarding.
+// Small reusable UI pieces (buttons, logo, titles, etc.) used across the screens.
 
 // Primary forest-green button with optional arrow.
 function PwButton({ children, onClick, disabled, variant = 'primary', icon, style, ...rest }) {
@@ -32,7 +32,7 @@ function PeerwayMark({ size = 32, color = 'var(--forest-700)' }) {
   );
 }
 
-// Peerway wordmark (logo + name)
+// Ampeer wordmark (logo + name)
 function PeerwayLogo({ size = 22 }) {
   return (
     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
@@ -66,7 +66,7 @@ function PwProgress({ current, total = 6 }) {
   );
 }
 
-// Screen frame — sets padding + houses progress header
+// Screen wrapper with the back button and progress dots at the top.
 function PwScreen({ children, onBack, step, totalSteps = 6, style }) {
   return (
     <div className="pw-screen pw-fade-in" style={style}>
@@ -95,8 +95,7 @@ function PwScreen({ children, onBack, step, totalSteps = 6, style }) {
   );
 }
 
-// Consistent page title used by every screen for hierarchy.
-// Renders as: [eyebrow uppercase] TITLE (32-36px) [subtitle 15px muted]
+// Page title block: small eyebrow, big title, and an optional subtitle.
 function PwPageTitle({ eyebrow, title, subtitle, size = 32 }) {
   return (
     <div style={{ marginTop: 12, marginBottom: 24 }}>
@@ -123,7 +122,7 @@ function PwPageTitle({ eyebrow, title, subtitle, size = 32 }) {
   );
 }
 
-// Small info tooltip — always opens upward and to the right; arrow at bottom-left
+// Small info tooltip that pops up when you tap the "i" button.
 function PwTooltip({ label }) {
   const [open, setOpen] = React.useState(false);
   const idRef = React.useRef(Math.random());

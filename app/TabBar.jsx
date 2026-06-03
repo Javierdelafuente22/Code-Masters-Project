@@ -1,4 +1,4 @@
-// Tab bar — 5 tabs, Dashboard center + elevated
+// Bottom tab bar with the five app tabs.
 const TABS = [
   { id: 'home',      label: 'Home',      Icon: null },
   { id: 'community', label: 'Community', Icon: null },
@@ -72,7 +72,7 @@ function TabBar({ active, onChange }) {
   );
 }
 
-// Page header used by all 5 tabs for consistent hierarchy.
+// Shared page header used at the top of each tab.
 function TabHeader({ eyebrow, title, right, subtitle }) {
   const isMobile =
     window.matchMedia('(max-width: 600px) and (pointer: coarse)').matches ||

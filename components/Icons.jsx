@@ -1,4 +1,4 @@
-// Tiny custom icon set — 1.5 stroke, round, forest-green friendly.
+// Reusable icon components.
 const PW_STROKE = { stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round', fill: 'none' };
 
 function IconCheck({ size = 20 }) {

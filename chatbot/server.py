@@ -1,13 +1,6 @@
 """
-Local Flask server that exposes the Gemini-backed chatbot to the frontend.
-
-Run from the project root:
-    python chatbot/server.py
-
-The frontend probes GET /health on mount. If reachable, it uses this server;
-otherwise it falls back to the hard-coded chat logic in app/AssistantTab.jsx.
-
-Requires: flask  (pip install flask)
+Local Flask server that connects the chatbot to the frontend.
+Run from the project root: python chatbot/server.py
 """
 import os
 import sys
@@ -16,13 +9,12 @@ from multiprocessing import Process
 
 from flask import Flask, request, jsonify, send_from_directory, abort
 
-# Make sibling modules (chatbot_API, chatbot_data) importable when this file
-# is run directly with `python chatbot/server.py`.
+# Let this file import its sibling modules when run directly
 HERE = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
-# All data paths in chatbot_data.py are relative to the project root.
+# Data paths in chatbot_data.py are relative to the project root
 os.chdir(PROJECT_ROOT)
 
 from chatbot_API import EnergyChatbot
@@ -31,8 +23,8 @@ from chatbot_data import apply_lifestyle_update, get_plot_window, plot_demand_co
 
 app = Flask(__name__)
 
-# Initialise the agent once at startup. If the key is missing the server still
-# starts but /health returns a non-OK status so the frontend falls back.
+# Start the chatbot once at startup. If the API key is missing the server still
+# runs, but /health reports the error so the frontend can fall back.
 try:
     AGENT = EnergyChatbot()
     AGENT_ERROR = None
@@ -42,7 +34,7 @@ except Exception as e:
     print(f"[server] EnergyChatbot init failed: {e}")
 
 
-# ---------- CORS (allow the static frontend to call us) ----------
+# Allow the frontend to call this server from the browser
 @app.after_request
 def add_cors(resp):
     resp.headers['Access-Control-Allow-Origin'] = '*'
@@ -57,7 +49,6 @@ def cors_preflight(_=None):
     return ('', 204)
 
 
-# ---------- Endpoints ----------
 @app.get('/health')
 def health():
     if AGENT is None:
@@ -78,14 +69,12 @@ def chat():
 
 
 def _run_apply_and_plot(payload):
-    """Runs in a subprocess so plt.show() blocks there instead of the server."""
+    """Applies the change and draws the plot; runs in a subprocess so it doesn't block the server."""
     try:
         df = apply_lifestyle_update(json_payload=payload)
         if df is None:
             return
-        # apply_lifestyle_update may have stashed a year_shift on the payload
-        # (when the LLM produced dates beyond 31/12/2025). Forward it so the
-        # plot's x-axis shows the originally requested year.
+        # Pass on the year_shift so the plot shows the requested year
         window = get_plot_window(df, payload)
         plot_demand_comparison(
             window,
@@ -96,10 +85,8 @@ def _run_apply_and_plot(payload):
         print(f"[server:_run_apply_and_plot] {e}")
 
 
-# ---------- Static frontend ----------
-# Serving the JSX/CSS/HTML from the same origin avoids the file:// CORS issues
-# Chromium browsers hit when Babel tries to XHR sibling .jsx files. The frontend
-# lives at http://localhost:5000/ and is otherwise unchanged from GitHub Pages.
+# Serve the frontend files from this server so the browser loads them
+# from the same origin and avoids CORS problems.
 _STATIC_ROOTS = {'app', 'components', 'data', 'vendor'}
 
 
@@ -110,8 +97,7 @@ def index():
 
 @app.get('/<path:filename>')
 def static_passthrough(filename):
-    # Allow tokens.css, logo.png etc. at the root, and anything under our known
-    # static folders. Refuse everything else so the API endpoints stay distinct.
+    # Allow files at the root and inside the known static folders; block the rest
     top = filename.split('/', 1)[0]
     if top in _STATIC_ROOTS or '/' not in filename:
         return send_from_directory(PROJECT_ROOT, filename)
@@ -125,9 +111,7 @@ def apply():
     if not payload or 'modification' not in payload or 'timing' not in payload:
         return jsonify({'ok': False, 'error': 'Invalid payload'}), 400
 
-    # Spawn the plot in a child process so this HTTP call returns immediately
-    # and the frontend can show the "Done" message without waiting on the
-    # matplotlib window being closed.
+    # Run the plot in a child process so this request returns straight away
     p = Process(target=_run_apply_and_plot, args=(payload,))
     p.daemon = True
     p.start()
@@ -135,7 +119,6 @@ def apply():
 
 
 if __name__ == '__main__':
-    # threaded=True so the frontend's ~20 parallel JSX fetches don't serialise
-    # behind each other. Plot generation already runs in its own subprocess.
+    # threaded=True so the frontend's parallel file requests don't queue up
     print("[server] Listening on http://localhost:5000")
     app.run(host='127.0.0.1', port=5000, debug=False, threaded=True, use_reloader=False)

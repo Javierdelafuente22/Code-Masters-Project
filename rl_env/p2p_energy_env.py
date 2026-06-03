@@ -1,14 +1,7 @@
 """
-P2P Energy Trading Gymnasium Environment.
-
-The agent controls a battery for 1_Prosumer, deciding when to charge/discharge
-to minimise energy costs through a combination of P2P trading and grid arbitrage.
-
-Episode: 1 day (24 hourly steps), SoC resets to 0 at start.
-State:   11 continuous features (demand, SoC, prices, time, community).
-Actions: continuous [-1, 1] representing fraction of max battery power.
-         -1 = full discharge, 0 = do nothing, +1 = full charge.
-Reward:  Scaled battery contribution (pure agent effect per step).
+Gymnasium environment for P2P energy trading.
+The agent controls a battery for 1_Prosumer over a day and tries to lower energy costs.
+Each episode is one day of 24 hourly steps.
 """
 
 import gymnasium as gym
@@ -20,13 +13,11 @@ from rl_env.battery import Battery
 from rl_env.rl_orderbook_simp import clear_market_for_agent
 
 
-# ---------- Battery power scaling ----------
-# Continuous action in [-1, 1] maps linearly to battery power in [-MAX_RATE, MAX_RATE].
-# action_power = action * MAX_RATE
-# Must match the Battery's max_rate parameter (0.4 by default).
+# Action in [-1, 1] scales to battery power in [-MAX_RATE, MAX_RATE].
+# Must match the Battery's max_rate.
 MAX_RATE = 0.4
 
-# ---------- State feature columns (from dataset) ----------
+# Market feature columns taken from the dataset.
 MARKET_FEATURES = [
     'import_price', 'export_price', 'spread', 'net_community',
     'time_day_sin', 'time_day_cos', 'time_year_sin', 'time_year_cos',
@@ -39,74 +30,57 @@ OTHER_AGENTS = ['2_Prosumer', '3_Prosumer', '4_Prosumer', '5_Prosumer',
 
 
 class P2PEnergyTradingEnv(gym.Env):
-    """
-    Gymnasium environment for P2P energy trading with battery optimisation.
-    """
+    """Gymnasium environment for P2P energy trading with a battery."""
     metadata = {"render_modes": []}
-    
+
     def __init__(self, df, reward_scale=10.0, episode_length=24):
-        """
-        Args:
-            df:             DataFrame with full dataset (already filtered to train or test).
-            reward_scale:   Multiplier for reward signal.
-            episode_length: Steps per episode (24 = 1 day).
-        """
+        """Set up the environment from the dataset (24 steps make one day)."""
         super().__init__()
-        
+
         self.df = df.reset_index(drop=True)
         self.reward_scale = reward_scale
         self.episode_length = episode_length
-        
-        # Precompute numpy arrays for fast access during training
+
+        # Turn the columns we need into numpy arrays for fast access during training.
         self.raw_demands = self.df[TARGET_AGENT].values.astype(np.float32)
         self.market_features = self.df[MARKET_FEATURES].values.astype(np.float32)
         self.import_prices = self.df['import_price'].values.astype(np.float32)
         self.export_prices = self.df['export_price'].values.astype(np.float32)
         self.others_demands = self.df[OTHER_AGENTS].values.astype(np.float32)
-        
-        # Identify valid episode start indices (each episode = 24 consecutive hours)
-        # Episodes start at midnight (step 0, 24, 48, ...) to represent full days
+
+        # Each episode is 24 consecutive hours starting at midnight.
         total_rows = len(self.df)
         self.episode_starts = list(range(0, total_rows - episode_length + 1, episode_length))
-        
+
         if len(self.episode_starts) == 0:
             raise ValueError(f"Dataset too small ({total_rows} rows) for episode_length={episode_length}")
-        
-        # Battery
+
         self.battery = Battery(capacity=1.0, max_rate=0.4, efficiency=0.95, initial_soc=0.0)
-        
-        # Action space: continuous in [-1, 1] representing battery power fraction
-        # action = -1  ->  discharge at MAX_RATE (full discharge)
-        # action =  0  ->  do nothing
-        # action = +1  ->  charge at MAX_RATE (full charge)
-        # Partial values give proportional charge/discharge rates.
-        # This continuous space allows nuanced decisions (e.g., charge at 0.6 of max),
-        # which discrete action spaces cannot express.
+
+        # Action: a value in [-1, 1] where -1 is full discharge, 0 does nothing,
+        # +1 is full charge, and values in between scale the rate.
         self.action_space = spaces.Box(
             low=-1.0, high=1.0,
             shape=(1,),
             dtype=np.float32
         )
-        
-        # Observation space: 11 continuous features
-        # [net_demand, soc, import_price, export_price, spread, net_community,
-        #  time_day_sin, time_day_cos, time_year_sin, time_year_cos, is_working_day]
+
+        # Observation: 11 features (demand, SoC, and 9 market features).
         self.observation_space = spaces.Box(
-            low=-1.5, high=1.5,  # Slightly wider than data range for safety
+            low=-1.5, high=1.5,
             shape=(11,),
             dtype=np.float32
         )
-        
-        # Internal state
+
         self.current_episode_start = 0
         self.current_step = 0
         self.episode_idx = 0
         
     def reset(self, seed=None, options=None):
-        """Reset environment to start of a new episode (new day)."""
+        """Start a new episode (a new day)."""
         super().reset(seed=seed)
-        
-        # Pick the next episode sequentially (chronological training)
+
+        # Move through the days in order.
         self.current_episode_start = self.episode_starts[self.episode_idx % len(self.episode_starts)]
         self.episode_idx += 1
         
@@ -118,75 +92,50 @@ class P2PEnergyTradingEnv(gym.Env):
         return obs, info
     
     def step(self, action):
-        """
-        Execute one trading step (1 hour).
-        
-        Returns: observation, reward, terminated, truncated, info
-        """
+        """Run one hourly trading step and return the result."""
         global_idx = self.current_episode_start + self.current_step
-        
-        # 1. Read market data for this timestep
+
+        # Read the market data for this hour.
         raw_demand = float(self.raw_demands[global_idx])
         import_price = float(self.import_prices[global_idx])
         export_price = float(self.export_prices[global_idx])
         others = self.others_demands[global_idx]
-        
-        # 2. Apply battery action
-        # Action is a continuous value in [-1, 1] (passed as a length-1 array).
-        # Scale to actual battery power: action_power = action * MAX_RATE.
-        # Battery will further clip by physical constraints (SoC bounds, max_rate).
+
+        # Scale the action to battery power and apply it to the battery.
         action_scalar = float(np.clip(np.asarray(action).flatten()[0], -1.0, 1.0))
         action_power = action_scalar * MAX_RATE
         demand_delta, new_soc = self.battery.apply_action(action_power)
         modified_demand = raw_demand + demand_delta
-        
-        # 3. Clear market TWICE for reward computation:
-        #    (a) WITHOUT battery action -- counterfactual "what would have happened"
-        #    (b) WITH battery action    -- what actually happened
-        # The reward is the difference, isolating ONLY the battery's contribution.
-        # Both clearings use the same P2P market, so exogenous P2P effects cancel out.
+
+        # Clear the market once without the battery and once with it.
+        # The difference is the reward, so it reflects only the battery's effect.
         cost_no_battery, _, _ = clear_market_for_agent(
             raw_demand, others, import_price, export_price
         )
         actual_cost, p2p_vol, grid_vol = clear_market_for_agent(
             modified_demand, others, import_price, export_price
         )
-        
-        # 4. Reward = pure battery contribution this step
-        # Positive when the battery action reduced cost vs doing nothing.
-        # Negative when the battery action increased cost (e.g., charging when expensive).
-        # This removes all exogenous noise from demand/price/community variation.
+
+        # Reward is how much the battery action saved this hour.
         raw_reward = cost_no_battery - actual_cost
         reward = float(raw_reward * self.reward_scale)
-        
-        # 6. Advance step
+
         self.current_step += 1
-        # Episode ends due to TIME LIMIT (day ended), not task completion.
-        # Under Gymnasium API: time limits are `truncated`, goal-reached is `terminated`.
-        # This distinction is critical for PPO: `terminated=True` tells SB3 the terminal
-        # value is 0 (no bootstrap), which destroys GAE advantage estimation for episodic
-        # daily tasks. `truncated=True` correctly tells SB3 to bootstrap the value.
-        #terminated = False
-        #truncated = self.current_step >= self.episode_length
 
         terminated = self.current_step >= self.episode_length
         truncated = False
-        
-        # 7. Build next observation
-        # On truncation (day ended), we return the last valid observation of the day
-        # (current step's observation, before advancing). SB3's DummyVecEnv will store
-        # this in info['terminal_observation'] for value bootstrapping before reset.
+
+        # When the day ends, return the final hour's observation.
         done = terminated or truncated
         if done:
-            # Use the current (final) step's observation for bootstrapping
             obs = np.zeros(11, dtype=np.float32)
             obs[0] = raw_demand
             obs[1] = new_soc
             obs[2:11] = self.market_features[global_idx]
         else:
             obs = self._get_observation()
-        
-        # 8. Info dict for logging/reporting
+
+        # Extra details kept for logging and reporting.
         info = {
             'raw_demand': raw_demand,
             'modified_demand': modified_demand,
@@ -206,15 +155,15 @@ class P2PEnergyTradingEnv(gym.Env):
         return obs, reward, terminated, truncated, info
     
     def _get_observation(self):
-        """Build the 11-dimensional state vector for the current timestep."""
+        """Build the 11-feature state vector for the current step."""
         global_idx = self.current_episode_start + self.current_step
-        
-        # Clamp index to valid range (for terminal observation)
+
+        # Keep the index within the dataset.
         global_idx = min(global_idx, len(self.df) - 1)
-        
+
         obs = np.zeros(11, dtype=np.float32)
-        obs[0] = self.raw_demands[global_idx]       # net_demand (1_Prosumer)
-        obs[1] = self.battery.soc                     # battery SoC
-        obs[2:11] = self.market_features[global_idx]  # 9 market features
-        
+        obs[0] = self.raw_demands[global_idx]       # agent demand
+        obs[1] = self.battery.soc                     # battery charge level
+        obs[2:11] = self.market_features[global_idx]  # market features
+
         return obs

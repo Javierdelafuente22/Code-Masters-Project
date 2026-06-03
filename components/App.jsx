@@ -1,5 +1,4 @@
-// Main App — orchestrates the 6-screen flow + loading/error states
-// Inside iOS frame, with Tweaks panel for host integration.
+// Main app. Runs the 6-screen onboarding flow plus the loading and error states.
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "showLoadingState": false,
@@ -9,7 +8,7 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "startScreen": 0
 }/*EDITMODE-END*/;
 
-// Accent hue remapping — swaps forest CSS vars at runtime
+// Color sets for each accent option.
 const ACCENT_MAP = {
   forest:   { 900:'#0E2A1F', 800:'#153826', 700:'#1F4A37', 600:'#27593F', 500:'#2F6B50', 300:'#7FA291', sage100:'#E8EFE9', sage50:'#F1F5F1' },
   emerald:  { 900:'#06281A', 800:'#0B3A26', 700:'#126B42', 600:'#18835A', 500:'#1FA06B', 300:'#7EC9A8', sage100:'#DFEFE6', sage50:'#EEF8F2' },
@@ -43,14 +42,14 @@ function PeerwayApp() {
   React.useEffect(() => localStorage.setItem('pw_step', String(step)), [step]);
   React.useEffect(() => applyAccent(tweaks.accentHue), [tweaks.accentHue]);
 
-  // Override internal mode from tweaks (tweaks win when explicitly set)
+  // Let the tweaks panel switch the loading/error overlays on.
   React.useEffect(() => {
     if (tweaks.showLoadingState) setInternalMode('loading');
     else if (tweaks.showErrorState) setInternalMode('error');
     else setInternalMode('flow');
   }, [tweaks.showLoadingState, tweaks.showErrorState]);
 
-  // Tweaks protocol wiring — listener registered FIRST, announcement second.
+  // Talk to the host page so the Tweaks panel can be turned on.
   React.useEffect(() => {
     const onMsg = (e) => {
       const d = e.data || {};
@@ -80,7 +79,7 @@ function PeerwayApp() {
     <Screen6_AllSet    key="s6" onNext={() => setInternalMode('done')} onBack={goBack}/>,
   ];
 
-  // Content to render inside the device frame
+  // Pick what to show inside the phone frame.
   let content;
   if (internalMode === 'loading') {
     content = <LoadingState/>;
@@ -98,7 +97,7 @@ function PeerwayApp() {
       display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
       padding: '40px 24px 80px', gap: 40, boxSizing: 'border-box',
     }}>
-      {/* Left rail — design system chips, only visible on wider screens */}
+      {/* Left rail (design system, hidden on small screens) */}
       <div className="pw-rail" style={{
         width: 260, flexShrink: 0, paddingTop: 20,
       }}>
@@ -159,7 +158,7 @@ function PeerwayApp() {
         </div>
       </div>
 
-      {/* Right rail — design notes */}
+      {/* Right rail (design notes) */}
       <div className="pw-rail" style={{
         width: 280, flexShrink: 0, paddingTop: 20,
       }}>

@@ -1,13 +1,6 @@
 """
-Standalone plotting script for PPO training results.
-
-Usage:
-    python plot_training.py
-
-Reads training_episodes.csv and generates 3 plots without retraining.
+Makes the reward plots from the saved PPO training results.
 """
-
-import argparse
 import os
 import pandas as pd
 import numpy as np
@@ -15,6 +8,7 @@ import matplotlib.pyplot as plt
 
 
 def _get_rolling_stats(episodes_df, source, window=5):
+    """Return the rolling mean and std of the reward for one data source."""
     subset = episodes_df[episodes_df['source'] == source].copy()
     if len(subset) < 2:
         return None
@@ -25,6 +19,7 @@ def _get_rolling_stats(episodes_df, source, window=5):
 
 
 def plot_lines(df, output_path, train_window=5, eval_window=5):
+    """Plot the train and test reward as simple lines."""
     fig, ax = plt.subplots(figsize=(12, 6))
     train_stats = _get_rolling_stats(df, 'train', window=train_window)
     eval_stats = _get_rolling_stats(df, 'eval', window=eval_window)
@@ -46,6 +41,7 @@ def plot_lines(df, output_path, train_window=5, eval_window=5):
 
 
 def plot_shaded_both(df, output_path, train_window=5, eval_window=5, band_factor=0.5):
+    """Plot train and test reward with a shaded band around each line."""
     fig, ax = plt.subplots(figsize=(12, 6))
     for source, color, label, w in [
         ('train', '#E69F00', 'Training', train_window),
@@ -71,6 +67,7 @@ def plot_shaded_both(df, output_path, train_window=5, eval_window=5, band_factor
 
 
 def plot_shaded_test_only(df, output_path, eval_window=5, band_factor=0.5):
+    """Plot only the test reward with a shaded band around the line."""
     stats = _get_rolling_stats(df, 'eval', eval_window)
     if stats is None or len(stats) < 2:
         print("Not enough eval data for plot 3.")

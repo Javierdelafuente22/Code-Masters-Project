@@ -1,11 +1,11 @@
-// Screen 1 — Welcome + pre-filled postcode confirmation
+// Onboarding step 1: welcome the user and confirm their postcode.
 function Screen1_Postcode({ state, setState, onNext }) {
   const [postcode] = React.useState(state.postcode || 'SW6 3JD');
   const [communityOpen, setCommunityOpen] = React.useState(!!state.communityId);
   const [communityId, setCommunityId] = React.useState(state.communityId || '');
   const [peerInfoOpen, setPeerInfoOpen] = React.useState(false);
 
-  // Mock resolved data — always available since postcode is pre-filled
+  // Example area info to show on screen.
   const areaData = { area: 'London', neighbors: 47 };
 
   const handleNext = () => {
@@ -23,7 +23,7 @@ function Screen1_Postcode({ state, setState, onNext }) {
         size={34}
       />
 
-      {/* Pre-filled postcode confirmation card */}
+      {/* Card showing the user's area and nearby neighbours */}
       <div style={{ marginTop: 36 }}>
           <div style={{
             background: 'var(--lime-50)',
@@ -53,7 +53,7 @@ function Screen1_Postcode({ state, setState, onNext }) {
           </div>
       </div>
 
-      {/* What is peer trading? expandable */}
+      {/* Tap to learn what peer trading is */}
       <div style={{ marginTop: 30 }}>
         <button onClick={() => setPeerInfoOpen(o => !o)} style={{
           appearance: 'none', background: 'transparent', border: 0, padding: 0,
@@ -83,7 +83,7 @@ function Screen1_Postcode({ state, setState, onNext }) {
         )}
       </div>
 
-      {/* Community ID expandable */}
+      {/* Optional community ID field */}
       <div style={{ marginTop: 16 }}>
         <button onClick={() => setCommunityOpen(o => !o)} style={{
           appearance: 'none', background: 'transparent', border: 0, padding: 0,
@@ -112,7 +112,7 @@ function Screen1_Postcode({ state, setState, onNext }) {
         )}
       </div>
 
-      {/* Primary CTA */}
+      {/* Main button to continue */}
       <div style={{ marginTop: 40 }}>
         <PwButton onClick={handleNext} icon={<IconArrowRight size={16}/>}>
           Connect your smart meter

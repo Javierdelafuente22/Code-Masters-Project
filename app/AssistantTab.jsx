@@ -2,11 +2,11 @@
   timeZone: 'Europe/London', hour: 'numeric', minute: '2-digit', hour12: true,
 }).format(new Date()).replace(' ', '').toLowerCase();
 
-// Local Flask server. Reachable on localhost; on GitHub Pages the probe
-// will fail and the frontend falls back to the hard-coded chat logic below.
+// Address of the local chat server. When it isn't running (for example on
+// GitHub Pages) the app uses the built-in replies further down instead.
 const CHAT_API_BASE = 'http://localhost:5000';
 
-// Fetch with a timeout so the probe can't hang the UI.
+// A fetch that gives up after a set time so a slow server can't freeze the app.
 const fetchWithTimeout = (url, opts = {}, ms = 1500) => {
   const ctrl = new AbortController();
   const id = setTimeout(() => ctrl.abort(), ms);
@@ -41,8 +41,9 @@ function SmartModeButton({ onClick }) {
   );
 }
 
-// Assistant tab — chat with AI trading agent. Mission-check pattern.
+// Assistant tab: the in-app chatbot that helps the user plan and trade their energy.
 function AssistantTab() {
+  // the chat history shown in the window, starting with two welcome messages
   const [messages, setMessages] = React.useState(() => {
     const t = nowBST();
     return [
@@ -68,19 +69,18 @@ function AssistantTab() {
   const scrollRef = React.useRef();
   const inputRef = React.useRef();
 
-  // Probe the local Flask server once on mount. If it answers, use the
-  // Gemini-backed path for the rest of the session. If not (GitHub Pages,
-  // server down, no API key), stay on the hard-coded path.
+  // Check once if the chat server is running. If it is, use it; if not,
+  // stick with the built-in replies.
   React.useEffect(() => {
     let cancelled = false;
     fetchWithTimeout(`${CHAT_API_BASE}/health`, {}, 1500)
       .then(r => r.ok ? r.json() : null)
       .then(j => { if (!cancelled && j && j.ok) setApiMode(true); })
-      .catch(() => { /* fallback path */ });
+      .catch(() => {});
     return () => { cancelled = true; };
   }, []);
 
-  // Web Speech API — speech-to-text. Tap mic, speak, transcript fills the input.
+  // Voice input: tap the mic, speak, and what you say is typed into the box.
   const speechSupported = typeof window !== 'undefined' &&
     (window.SpeechRecognition || window.webkitSpeechRecognition);
 
@@ -106,9 +106,9 @@ function AssistantTab() {
       setInput((finalText + interim).trim());
     };
     rec.onerror = () => setListening(false);
-    // Don't auto-stop on silence — user controls via tap
     rec.onend = () => {
-      // Browser may force-stop after silence; restart if still in listening mode
+      // The browser may stop on its own after a quiet moment, so start it
+      // again if the user hasn't tapped to stop.
       if (recognitionRef.current && recognitionRef.current._keepAlive) {
         try { rec.start(); } catch (e) {}
       }
@@ -134,7 +134,7 @@ function AssistantTab() {
     }
   }, [messages]);
 
-  // Resize textarea when input changes from any source (typed, voice, programmatic)
+  // Grow the text box to fit whatever has been typed or spoken into it.
   React.useEffect(() => {
     if (!inputRef.current) return;
     inputRef.current.style.height = 'auto';
@@ -147,14 +147,15 @@ function AssistantTab() {
   "Charge my EV by 7am"];
 
 
+  // Add the user's message to the chat and work out a reply.
   const runPrompt = (text) => {
     setMessages((m) => [...m, { role: 'user', text, ts: 'now' }]);
     setInput('');
     if (inputRef.current) { inputRef.current.style.height = '36px'; }
 
     if (apiMode) {
-      // Gemini-backed path. Falls through to the hard-coded matcher on any
-      // failure (network, 5xx, malformed JSON) so the user always gets a reply.
+      // Ask the server for a reply. If anything goes wrong, fall back to the
+      // built-in replies so the user always gets an answer.
       fetchWithTimeout(`${CHAT_API_BASE}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -185,18 +186,18 @@ function AssistantTab() {
       return;
     }
 
-    // Hard-coded fallback path.
+    // Built-in replies, used when the server isn't available.
     setTimeout(() => {
       const response = aiRespond(text);
       setMessages((m) => [...m, response]);
     }, 700);
   };
 
+  // Built-in replies. Looks at the message and returns a fitting answer.
   const aiRespond = (text) => {
     const t = text.toLowerCase();
 
-    // 0) GREETING — bare hi / hello / etc. Strict ^…$ so messages like
-    //    "hi, how do I trade?" still fall through to the right matcher.
+    // A plain greeting on its own, like "hi" or "hello"
     if (/^(hi|hello|hey|hiii|hellooo|hii|helloo|hiya|howdy|yo|sup|hola|good (morning|afternoon|evening|day)|what'?s up|whatsup)( there| ampeer)?[\s.,!?]*$/i.test(t)) {
       return {
         role: 'ai', type: 'message', ts: 'now',
@@ -204,7 +205,7 @@ function AssistantTab() {
       };
     }
 
-    // 1) HOLIDAY / TRAVEL / AWAY
+    // Going away or on holiday
     if (/\b(holiday|holidays|vacation|away|trip|travel|travelling|traveling|out of town|paris|spain|abroad|weekend away|going away|not home|not around|leaving town|leaving home|be away|be out|gone for|gone all|few days off|days off|week off|time off|flying|flight|airport|staying at|visiting|won't be home|won't be in|not in today|not in tomorrow|not back|back on|return on|gone until|empty house|house.?sit|nobody home|no one home|mum'?s|mom'?s|parents|friend'?s|bnb|airbnb|hotel|hostel|camping|festival|wedding|break|getaway|ski|beach|city break)\b/.test(t)) {
       return {
         role: 'ai', type: 'plan', ts: 'now',
@@ -219,7 +220,7 @@ function AssistantTab() {
       };
     }
 
-    // 2) WORK SCHEDULE — WFH or office days
+    // Work day, either at home or in the office
     if (/\b(work from home|working from home|wfh|home office|home all day|in the office|at the office|going to work|commute|commuting|workday|work schedule|office today|office tomorrow|in office|heading to work|heading in|going in|at work|working today|working tomorrow|9 to 5|nine to five|hybrid|remote|on site|on-?site|staying home|home today|home tomorrow|day off|not working|working late|early start|late start|back from work|finishing early|leaving work|leave work|start at|finish at|shifts?|night shift|morning shift)\b/.test(t)) {
       const office = /\b(office|going to work|commute|commuting|in office|heading to work|heading in|going in|at work|on site|on-?site|9 to 5|nine to five)\b/.test(t);
       if (office) {
@@ -247,9 +248,9 @@ function AssistantTab() {
       };
     }
 
-    // 3) EV CHARGING
+    // Charging the EV
     if (/\b(ev|electric vehicle|car|tesla|model [3sxy]|charge|charging|charger|plug in|plug it in|plugged in|top up|top it up|juice|range|miles|battery.?low|need.?charge|full.?charge|charge.?full|ready.?by|ready.?for|drive|driving|road trip|long drive|motorway|need the car|using the car|taking the car)\b/.test(t)) {
-      // Try to extract a target time like "by 7am" or "by 8:30"
+      // Pick out a time like "by 7am" if one was given, otherwise use 7am
       const timeMatch = t.match(/by\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
       const targetTime = timeMatch ? timeMatch[0].replace('by ', '') : '7am';
       return {
@@ -264,7 +265,7 @@ function AssistantTab() {
       };
     }
 
-    // 4) "What does the app do / how does Ampeer work" — friendly explainer
+    // Asking what the app does or how it works
     if (/\b(what (does|is) (the |this )?(app|ampeer|it)( do)?|what'?s (the |this )?(app|ampeer|it)( do)?|what (is|'?s) (it|this|the app) for|how (does|do) (it|this|the app|ampeer) work|how (does|do) ampeer work|tell me (about|more about) (the |this )?(app|ampeer|it)|explain (the |this |it )?(app|ampeer)?|describe (the |this )?(app|ampeer|it)|how does peer.to.peer|how does p2p)\b/.test(t)) {
       return {
         role: 'ai', type: 'message', ts: 'now',
@@ -273,7 +274,7 @@ function AssistantTab() {
       };
     }
 
-    // 5) "Why is this beneficial / what's in it for me / why use it" — value pitch
+    // Asking why the app is worth using
     if (/\b(why (is|are|would|should) (this|it|i|ampeer|the app|using ampeer)|why use (this|the app|ampeer)|how (do|does|will) (it|this|ampeer) (help|benefit) (me|us|society|the planet|the environment|the community)|how (do|will) i benefit|what'?s in it for me|what'?s the benefit|benefits? (of|for|to) (using )?(this|it|the app|ampeer|me)|is (this|it|ampeer) worth it|good for (me|society|the planet|the environment|the community)|help (the )?(environment|planet|community)|why does it benefit)\b/.test(t)) {
       return {
         role: 'ai', type: 'message', ts: 'now',
@@ -285,7 +286,7 @@ function AssistantTab() {
       };
     }
 
-    // 6) ENERGY-RELATED but outside the use cases — gentle redirect
+    // About energy, but not one of the cases above
     if (/\b(energy|electricity|power|solar|battery|grid|tariff|surplus|kwh|kw|sell|buy|trade|trading|peer|community|bill|saving|savings|price|cheap|peak|off-?peak)\b/.test(t)) {
       return {
         role: 'ai', type: 'message', ts: 'now',
@@ -293,16 +294,16 @@ function AssistantTab() {
       };
     }
 
-    // 7) NON-ENERGY — politely decline
+    // Anything not about energy
     return {
       role: 'ai', type: 'message', ts: 'now',
       text: "I can only help with energy-related tasks — like managing your solar, planning around holidays or work, or scheduling EV charging. Ask me about any of those!"
     };
   };
 
+  // Runs when the user taps Yes or Not yet on a suggested plan.
   const handleConfirm = (idx, ok) => {
-    // Capture the message we're confirming before any state update so we can
-    // forward its payload to /apply (only present in API mode).
+    // Remember the plan being answered before the chat updates.
     const target = messages[idx];
 
     setMessages((m) => {
@@ -325,16 +326,16 @@ function AssistantTab() {
     });
 
     if (ok && apiMode && target && target._payload) {
-      // Fire-and-forget: the server spawns the matplotlib plot in a subprocess
-      // and returns immediately. The chat UI doesn't need to wait or render it.
+      // Tell the server the plan was accepted. We don't wait for a result.
       fetchWithTimeout(`${CHAT_API_BASE}/apply`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payload: target._payload }),
-      }, 5000).catch(() => { /* plot just won't open; UI already moved on */ });
+      }, 5000).catch(() => {});
     }
   };
 
+  // Turns on smart mode and posts a confirmation message in the chat.
   const handleEnable = ({ cal, location }) => {
     let what, benefit;
     if (cal && location) {
@@ -381,7 +382,7 @@ function AssistantTab() {
         )}
       </div>
 
-      {/* Prompt chips — just 2, no scroll */}
+      {/* Quick suggestion buttons */}
       <div style={{
         padding: '8px 16px 0',
         display: 'flex', gap: 8, flexWrap: 'wrap'
@@ -641,7 +642,7 @@ function ChatBubble({ msg, idx, onConfirm, onSmartMode }) {
 
 }
 
-// Dedicated explainer screen — NOT a modal.
+// The smart mode screen, explaining what gets connected and asking permission.
 function IntelligenceScreen({ onBack, onEnable, cal, onCalChange, location, onLocationChange }) {
   const anyOn = cal || location;
 
@@ -679,7 +680,7 @@ function IntelligenceScreen({ onBack, onEnable, cal, onCalChange, location, onLo
 
         </p>
 
-        {/* Granular toggles */}
+        {/* Permission toggles */}
         <div style={{
           background: 'var(--surface)',
           border: '1px solid var(--cream-200)',

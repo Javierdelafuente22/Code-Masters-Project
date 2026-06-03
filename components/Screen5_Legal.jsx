@@ -1,4 +1,4 @@
-// Screen 5 — Legal + consent with expandable detail panels
+// Onboarding step 5: show the terms and ask the user to agree.
 function Screen5_Legal({ onNext, onBack }) {
   const [agreed, setAgreed] = React.useState(false);
   const [openItem, setOpenItem] = React.useState(null);
@@ -81,7 +81,7 @@ function Screen5_Legal({ onNext, onBack }) {
     },
   ];
 
-  // If a detail panel is open, show it full-screen
+  // If the user opened one of the items, show its full text instead.
   if (openItem !== null) {
     const item = items[openItem];
     return (
@@ -139,14 +139,14 @@ function Screen5_Legal({ onNext, onBack }) {
         size={32}
       />
 
-      {/* Reassurance */}
+      {/* Short reminder of why this saves money */}
       <div style={{ marginTop: 4 }}>
         <PwReassurance title="Why Ampeer saves you money.">
           Trading with peers means you buy for less and sell for more versus a standard grid tariff.
         </PwReassurance>
       </div>
 
-      {/* List of legal items */}
+      {/* Tappable list of legal sections */}
       <div className="pw-card" style={{ marginTop: 20, overflow: 'hidden' }}>
         {items.map((it, i) => (
           <button key={i} onClick={() => setOpenItem(i)} style={{
@@ -177,7 +177,7 @@ function Screen5_Legal({ onNext, onBack }) {
         ))}
       </div>
 
-      {/* Consent checkbox */}
+      {/* Checkbox to agree */}
       <button
         type="button"
         onClick={() => setAgreed(a => !a)}

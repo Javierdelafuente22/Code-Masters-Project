@@ -1,10 +1,10 @@
-// Community tab — animated map of anonymized trading peers
+// Community tab: shows a live map of nearby neighbours and how energy is traded between them.
 function CommunityTab({ highlight, onClearHighlight, weatherState }) {
   const activeKind = weatherState?.activeKind || 'sunny';
   const [tick, setTick] = React.useState(0);
   const [glowing, setGlowing] = React.useState(false);
-  const [inviteMethod, setInviteMethod] = React.useState(null); // null | 'share' | 'clipboard'
-  const [popup, setPopup] = React.useState(null); // null | { title, insight }
+  const [inviteMethod, setInviteMethod] = React.useState(null); // how the invite was sent
+  const [popup, setPopup] = React.useState(null); // the tapped node's pop-up, or null
 
   const handleInvite = async () => {
     const url = 'https://www.ampeerenergy.com';
@@ -21,7 +21,7 @@ function CommunityTab({ highlight, onClearHighlight, weatherState }) {
         setInviteMethod('clipboard');
       }
     } catch (e) {
-      // user cancelled — do nothing
+      // user cancelled the share, so do nothing
     }
   };
 
@@ -38,7 +38,7 @@ function CommunityTab({ highlight, onClearHighlight, weatherState }) {
 
   React.useEffect(() => {
     if (!highlight) return;
-    onClearHighlight && onClearHighlight(); // clear parent flag immediately so re-visits don't re-trigger
+    onClearHighlight && onClearHighlight(); // clear the flag so the glow doesn't replay on revisit
     setGlowing(true);
     const t = setTimeout(() => setGlowing(false), 4000);
     return () => clearTimeout(t);
@@ -62,7 +62,7 @@ function CommunityTab({ highlight, onClearHighlight, weatherState }) {
         <div className="t-label" style={{ color: 'var(--ink-500)', fontSize: 13, padding: '0 24px 14px' }}>
           Anonymous trades within 5km
         </div>
-        {/* Map canvas */}
+        {/* map of nearby members and their trades */}
         <div style={{
           margin: '0 16px',
           height: 300, position: 'relative',
@@ -106,7 +106,7 @@ function CommunityTab({ highlight, onClearHighlight, weatherState }) {
             <LegendItem color="#6B7370" label="GRID" />
           </div>
 
-          {/* Live count */}
+          {/* live trades-per-minute badge */}
           <div style={{
             position: 'absolute', top: 14, right: 14,
             padding: '6px 10px', background: 'var(--ink-900)', color: '#fff',
@@ -121,7 +121,7 @@ function CommunityTab({ highlight, onClearHighlight, weatherState }) {
           </div>
         </div>
 
-        {/* Collective impact */}
+        {/* the community's total CO2 saved this month */}
         <div style={{ padding: '24px 24px 0' }}>
           <div style={{
             padding: 18,
@@ -150,7 +150,7 @@ function CommunityTab({ highlight, onClearHighlight, weatherState }) {
               Equivalent to a <span style={{ color: 'var(--lime-400)', fontWeight: 600 }}>London → Edinburgh</span> train trip for everyone in the community.
             </div>
 
-            {/* Decorative sparkline */}
+            {/* small decorative line graph */}
             <svg viewBox="0 0 120 30" width="120" height="30"
             style={{ position: 'absolute', right: 16, top: 45, opacity: 0.35 }}>
               <path d="M0,22 L15,18 L30,14 L45,18 L60,10 L75,14 L90,6 L105,9 L120,4"
@@ -160,7 +160,7 @@ function CommunityTab({ highlight, onClearHighlight, weatherState }) {
           </div>
         </div>
 
-        {/* Trading breakdown */}
+        {/* who you've traded with this month */}
         <div style={{ padding: '20px 24px 0' }}>
           <div className="t-label" style={{ color: 'var(--ink-500)', marginBottom: 12, fontSize: 13 }}>
             This month you've traded with
@@ -174,7 +174,7 @@ function CommunityTab({ highlight, onClearHighlight, weatherState }) {
           </div>
         </div>
 
-        {/* Community composition */}
+        {/* breakdown of the kinds of members in the community */}
         <div style={{ padding: '20px 24px 0' }}>
           <div style={{
             padding: 16,
@@ -212,7 +212,7 @@ function CommunityTab({ highlight, onClearHighlight, weatherState }) {
           </div>
         </div>
 
-        {/* Invite CTA — at the bottom */}
+        {/* button to invite a neighbour */}
         <div style={{ padding: '24px 24px 0' }}>
           {inviteMethod ? (
             <div className="pw-fade-in" style={{
@@ -351,8 +351,7 @@ function Swatch({ color, label }) {
 
 }
 
-// Animated map with anonymized nodes. 10 peers + grid node + you.
-// Positions are stable, flows are randomized per tick to feel alive.
+// the ten neighbours shown on the map, with their position and type
 const PEERS = [
 { x: 72, y: 92, type: 'shop' },
 { x: 130, y: 70, type: 'home' },
@@ -368,8 +367,7 @@ const PEERS = [
 const GRID_NODE = { x: 220, y: 185 };
 const YOU_NODE = { x: 140, y: 160 };
 
-// Per-node insights, shown in a popup when a node is tapped. Indices align with PEERS;
-// each entry must match the type at the same index so e.g. shops get shop-flavoured copy.
+// the short message shown when each neighbour is tapped (same order as PEERS above)
 const PEER_INSIGHTS = [
   'Local shops often need steady power during the day.',
   'Homes nearby usually use extra solar energy in the evening.',
@@ -393,13 +391,9 @@ function CommunityMap({ tick, kind, onTap }) {
       : kind === 'cloudy'
         ? "You're sharing a small surplus when your panels can spare it."
         : "You're exporting surplus solar to nearby neighbours.";
-  // Active flows depend on the weather kind (driven by Home tab override).
-  // Sunny: vibrant peer-to-peer + lots of YOU → trades.
-  // Cloudy: mix of YOU → and GRID → flows; modest activity.
-  // Rainy: grid-dominated, no flows out from YOU (you're using your battery).
+  // which energy lines to show depends on the weather
   const activeFlows = React.useMemo(() => {
     if (kind === 'night') {
-      // Quieter than rainy — fewer flows, lighter blue against dark.
       return [
         { from: GRID_NODE, to: PEERS[1], color: '#7a9cc2' },
         { from: GRID_NODE, to: PEERS[5], color: '#7a9cc2' },
@@ -418,19 +412,19 @@ function CommunityMap({ tick, kind, onTap }) {
       return [
         { from: YOU_NODE,  to: PEERS[1], color: '#00A862' },
         { from: YOU_NODE,  to: PEERS[6], color: '#00A862' },
-        { from: GRID_NODE, to: PEERS[4], color: '#8aa69b' }, // grid → school (downwards)
-        { from: GRID_NODE, to: PEERS[2], color: '#8aa69b' }, // grid → north shop (upwards)
-        { from: PEERS[3],  to: PEERS[5], color: '#6FCBA0' }, // peer-to-peer in light green
+        { from: GRID_NODE, to: PEERS[4], color: '#8aa69b' },
+        { from: GRID_NODE, to: PEERS[2], color: '#8aa69b' },
+        { from: PEERS[3],  to: PEERS[5], color: '#6FCBA0' }, // a trade between two neighbours
       ];
     }
     return [
       { from: YOU_NODE,  to: PEERS[1], color: '#00C06F' },
       { from: YOU_NODE,  to: PEERS[6], color: '#00A862' },
       { from: YOU_NODE,  to: PEERS[8], color: '#00C06F' },
-      // Adjacent peer-to-peer trades (close neighbours, kept clean)
-      { from: PEERS[0],  to: PEERS[1], color: '#6FCBA0' }, // NW pair
-      { from: PEERS[3],  to: PEERS[4], color: '#6FCBA0' }, // NE pair (home → school)
-      { from: PEERS[5],  to: PEERS[6], color: '#6FCBA0' }, // SE pair
+      // trades between close-by neighbours
+      { from: PEERS[0],  to: PEERS[1], color: '#6FCBA0' },
+      { from: PEERS[3],  to: PEERS[4], color: '#6FCBA0' },
+      { from: PEERS[5],  to: PEERS[6], color: '#6FCBA0' },
     ];
   }, [kind]);
 
@@ -446,32 +440,32 @@ function CommunityMap({ tick, kind, onTap }) {
         </pattern>
       </defs>
 
-      {/* Subtle map grid */}
+      {/* faint grid background */}
       <rect width="360" height="295" fill="url(#mapGrid)" />
 
-      {/* Stylized 'roads' — soft organic lines */}
+      {/* roads */}
       <path d="M -20 180 Q 100 160 200 175 T 380 160"
       fill="none" stroke="rgba(0,168,98,0.10)" strokeWidth="18" strokeLinecap="round" />
       <path d="M 180 -20 Q 195 100 190 180 T 210 360"
       fill="none" stroke="rgba(0,168,98,0.10)" strokeWidth="14" strokeLinecap="round" />
 
-      {/* Soft 'neighborhood blob' */}
+      {/* shaded area marking the neighbourhood */}
       <path d="M 40 120 Q 60 60 180 70 Q 320 60 330 180 Q 340 280 180 290 Q 40 300 30 180 Z"
       fill="rgba(0,168,98,0.04)" stroke="rgba(0,168,98,0.15)"
       strokeWidth="1" strokeDasharray="3 5" />
 
-      {/* Connections — all peers to grid node, faint */}
+      {/* faint lines linking every neighbour to the grid */}
       {PEERS.map((p, i) =>
       <line key={`c${i}`} x1={p.x} y1={p.y} x2={GRID_NODE.x} y2={GRID_NODE.y}
       stroke="rgba(14,42,31,0.08)" strokeWidth="0.8" />
       )}
 
-      {/* Flows animated */}
+      {/* the moving energy lines */}
       {activeFlows.map((f, i) =>
       <AnimatedFlow key={i} from={f.from} to={f.to} color={f.color} tick={tick} delay={i * 0.3} />
       )}
 
-      {/* Grid node */}
+      {/* the grid in the middle */}
       <g transform={`translate(${GRID_NODE.x}, ${GRID_NODE.y})`}
         onClick={() => onTap({ title: 'Grid', insight: GRID_INSIGHT })}
         style={{ cursor: 'pointer' }}>
@@ -481,13 +475,13 @@ function CommunityMap({ tick, kind, onTap }) {
         </g>
       </g>
 
-      {/* Peer houses */}
+      {/* the neighbour icons */}
       {PEERS.map((p, i) =>
       <PeerNode key={i} x={p.x} y={p.y} type={p.type} pulse={0.6 + 0.4 * Math.sin(tick * 2 + i)}
         onTap={() => onTap({ title: TYPE_TITLE[p.type], insight: PEER_INSIGHTS[i] })} />
       )}
 
-      {/* YOU — pulsing center */}
+      {/* the "you" marker in the centre */}
       <g transform={`translate(${YOU_NODE.x}, ${YOU_NODE.y})`}
         onClick={() => onTap({ title: 'You', insight: youInsight })}
         style={{ cursor: 'pointer' }}>
@@ -540,7 +534,7 @@ function AnimatedFlow({ from, to, color, tick, delay = 0 }) {
     if (ref.current) setLen(ref.current.getTotalLength());
   }, [from, to]);
 
-  // Curved path for more organic feel
+  // work out a gently curved line between the two points
   const mx = (from.x + to.x) / 2;
   const my = (from.y + to.y) / 2;
   const dx = to.x - from.x;

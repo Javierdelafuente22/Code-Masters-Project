@@ -1,6 +1,4 @@
-// Clean onboarding flow — 6-screen flow. Calls onComplete when done.
-// On mobile, renders full-screen with no frame.
-// On desktop, keeps the centered IOSDevice card.
+// Runs the onboarding screens in order, then opens the main app.
 
 function OnboardingFlow({ onComplete }) {
   const [step, setStep] = React.useState(0);
@@ -35,6 +33,7 @@ function OnboardingFlow({ onComplete }) {
     </div>
   );
 
+  // On a phone, fill the whole screen. On desktop, show it inside a phone frame.
   if (isMobile) {
     return (
       <div style={{

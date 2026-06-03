@@ -1,7 +1,5 @@
 
-// DesignCanvas.jsx — Figma-ish design canvas wrapper
-// Warm gray grid bg + Sections + Artboards + PostIt notes.
-// No assets, no deps.
+// A Figma-like canvas you can pan and zoom, holding sections, artboards and notes.
 
 const DC = {
   bg: '#f0eee9',
@@ -14,19 +12,10 @@ const DC = {
   font: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
 };
 
-// ─────────────────────────────────────────────────────────────
-// Main canvas — transform-based pan/zoom viewport
-//
-// Input mapping (Figma-style):
-//   • trackpad pinch  → zoom   (ctrlKey wheel; Safari gesture* events)
-//   • trackpad scroll → pan    (two-finger)
-//   • mouse wheel     → zoom   (notched; distinguished from trackpad scroll)
-//   • middle-drag / primary-drag-on-bg → pan
-//
-// Transform state lives in a ref and is written straight to the DOM
-// (translate3d + will-change) so wheel ticks don't go through React —
-// keeps pans at 60fps on dense canvases.
-// ─────────────────────────────────────────────────────────────
+// The pan/zoom canvas.
+// Pinch or mouse wheel zooms; two-finger scroll or dragging the background pans.
+// The position is kept in a ref and written straight to the DOM so panning
+// stays smooth.
 function DesignCanvas({ children, minScale = 0.1, maxScale = 8, style = {} }) {
   const vpRef = React.useRef(null);
   const worldRef = React.useRef(null);
@@ -48,44 +37,39 @@ function DesignCanvas({ children, minScale = 0.1, maxScale = 8, style = {} }) {
       const t = tf.current;
       const next = Math.min(maxScale, Math.max(minScale, t.scale * factor));
       const k = next / t.scale;
-      // keep the world point under the cursor fixed
+      // zoom toward the cursor so the point under it stays put
       t.x = px - (px - t.x) * k;
       t.y = py - (py - t.y) * k;
       t.scale = next;
       apply();
     };
 
-    // Mouse-wheel vs trackpad-scroll heuristic. A physical wheel sends
-    // line-mode deltas (Firefox) or large integer pixel deltas with no X
-    // component (Chrome/Safari, typically multiples of 100/120). Trackpad
-    // two-finger scroll sends small/fractional pixel deltas, often with
-    // non-zero deltaX. ctrlKey is set by the browser for trackpad pinch.
+    // Try to tell a real mouse wheel apart from trackpad two-finger scrolling.
+    // A mouse wheel sends bigger, whole-number steps with no sideways movement.
     const isMouseWheel = (e) =>
       e.deltaMode !== 0 ||
       (e.deltaX === 0 && Number.isInteger(e.deltaY) && Math.abs(e.deltaY) >= 40);
 
     const onWheel = (e) => {
       e.preventDefault();
-      if (isGesturing) return; // Safari: gesture* owns the pinch — discard concurrent wheels
+      if (isGesturing) return; // Safari handles pinch separately, so skip these
       if (e.ctrlKey) {
-        // trackpad pinch (or explicit ctrl+wheel)
+        // pinch to zoom
         zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * 0.01));
       } else if (isMouseWheel(e)) {
-        // notched mouse wheel — fixed-ratio step per click
+        // mouse wheel: zoom one step
         zoomAt(e.clientX, e.clientY, Math.exp(-Math.sign(e.deltaY) * 0.18));
       } else {
-        // trackpad two-finger scroll — pan
+        // two-finger scroll: pan
         tf.current.x -= e.deltaX;
         tf.current.y -= e.deltaY;
         apply();
       }
     };
 
-    // Safari sends native gesture* events for trackpad pinch with a smooth
-    // e.scale; preferring these over the ctrl+wheel fallback gives a much
-    // better feel there. No-ops on other browsers. Safari also fires
-    // ctrlKey wheel events during the same pinch — isGesturing makes
-    // onWheel drop those entirely so they neither zoom nor pan.
+    // Safari uses its own pinch (gesture) events, which feel smoother there.
+    // isGesturing tells onWheel to ignore the wheel events Safari fires at the
+    // same time.
     let gsBase = 1;
     let isGesturing = false;
     const onGestureStart = (e) => { e.preventDefault(); isGesturing = true; gsBase = tf.current.scale; };
@@ -95,8 +79,8 @@ function DesignCanvas({ children, minScale = 0.1, maxScale = 8, style = {} }) {
     };
     const onGestureEnd = (e) => { e.preventDefault(); isGesturing = false; };
 
-    // Drag-pan: middle button anywhere, or primary button starting on the
-    // canvas background (not inside an artboard).
+    // Pan by dragging with the middle button, or the left button on empty
+    // background (not on an artboard).
     let drag = null;
     const onPointerDown = (e) => {
       const onBg = e.target === vp || e.target === worldRef.current;
@@ -176,9 +160,7 @@ function DesignCanvas({ children, minScale = 0.1, maxScale = 8, style = {} }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Section — title + subtitle + h-stack of artboards (no wrap)
-// ─────────────────────────────────────────────────────────────
+// A section: title, subtitle, and a row of artboards.
 function DCSection({ title, subtitle, children, gap = 48 }) {
   return (
     <div style={{ marginBottom: 80, position: 'relative' }}>
@@ -193,7 +175,7 @@ function DCSection({ title, subtitle, children, gap = 48 }) {
           }}>{subtitle}</div>
         )}
       </div>
-      {/* h-stack — clips offscreen, never wraps */}
+      {/* artboards sit in a single row */}
       <div style={{
         display: 'flex', gap, padding: '0 60px',
         alignItems: 'flex-start', width: 'max-content',
@@ -204,9 +186,7 @@ function DCSection({ title, subtitle, children, gap = 48 }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Artboard — labeled card
-// ─────────────────────────────────────────────────────────────
+// A single labeled card (one screen).
 function DCArtboard({ label, children, width, height, style = {} }) {
   return (
     <div style={{ position: 'relative', flexShrink: 0 }}>
@@ -232,9 +212,7 @@ function DCArtboard({ label, children, width, height, style = {} }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Post-it — absolute-positioned sticky note
-// ─────────────────────────────────────────────────────────────
+// A sticky note you can place anywhere on the canvas.
 function DCPostIt({ children, top, left, right, bottom, rotate = -2, width = 180 }) {
   return (
     <div style={{

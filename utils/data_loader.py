@@ -1,10 +1,6 @@
 """
-Data loading and train/test split utilities.
-
-Split strategy: Chronological 80/20 (Option A).
-    - Zero data leakage
-    - Train: first ~80% of days
-    - Test: last ~20% of days
+Loads the orderbook data and splits it into train and test sets.
+The split is by date: the first 80% of days train, the last 20% test.
 """
 
 import pandas as pd
@@ -23,42 +19,24 @@ REQUIRED_COLUMNS = [
 
 
 def load_and_split(csv_path, train_ratio=0.8, episode_length=24):
-    """
-    Load the orderbook CSV and split into train/test DataFrames.
-    
-    The split is done at the day boundary to ensure complete episodes.
-    
-    Args:
-        csv_path:       Path to the orderbook.csv file.
-        train_ratio:    Fraction of days for training (default 0.8).
-        episode_length: Hours per episode (default 24).
-    
-    Returns:
-        df_train: Training DataFrame.
-        df_test:  Testing DataFrame.
-        info:     Dict with split metadata.
-    """
+    """Loads the orderbook CSV and splits it into train and test DataFrames by day."""
     df = pd.read_csv(csv_path)
-    
-    # Validate columns
+
     missing = set(REQUIRED_COLUMNS) - set(df.columns)
     if missing:
         raise ValueError(f"Missing columns in dataset: {missing}")
-    
-    # Parse timestamp
+
     df['timestamp'] = pd.to_datetime(df['timestamp'], dayfirst=True)
-    
-    # Ensure data is sorted by time
+
     df = df.sort_values('timestamp').reset_index(drop=True)
-    
+
     total_rows = len(df)
     total_days = total_rows // episode_length
-    
-    # Trim any incomplete trailing day
+
+    # Drop any incomplete final day
     usable_rows = total_days * episode_length
     df = df.iloc[:usable_rows].reset_index(drop=True)
-    
-    # Split at day boundary
+
     train_days = int(total_days * train_ratio)
     test_days = total_days - train_days
     train_rows = train_days * episode_length

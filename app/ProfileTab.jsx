@@ -1,4 +1,5 @@
-// Profile tab — account management
+// Profile tab: shows the user's account details and settings like trading,
+// notifications, data export, support, and deleting the account.
 function ProfileTab() {
   const [paused, setPaused] = React.useState(false);
   const [digest, setDigest] = React.useState(true);
@@ -9,6 +10,7 @@ function ProfileTab() {
   const [supportSent, setSupportSent] = React.useState(false);
   const [csvOpen, setCsvOpen] = React.useState(false);
 
+  // Builds the trading history as a CSV file and saves it to the device.
   const downloadCsv = () => {
     const header = 'Date,Time,Type,kWh,Rate (p/kWh),Counterparty,Grid Equiv Rate (p/kWh),Saving (£),CO2 Saved (kg)';
     const rows = [
@@ -45,6 +47,7 @@ function ProfileTab() {
     URL.revokeObjectURL(url);
   };
 
+  // Content for the detail screens opened from the Support section.
   const panels = {
     export: {
       title: 'Export my data',
@@ -157,7 +160,7 @@ function ProfileTab() {
 
   if (csvOpen) return <CsvViewer onBack={() => setCsvOpen(false)} onDownload={downloadCsv} />;
 
-  // Detail panel view
+  // Show a detail screen when one of the support items is tapped.
   if (openPanel && panels[openPanel]) {
     const panel = panels[openPanel];
     return (
@@ -304,7 +307,7 @@ function ProfileTab() {
           />
         </div>
 
-        {/* Support — includes export */}
+        {/* Support */}
         <SectionLabel>Support</SectionLabel>
         <div style={{
           background: 'var(--surface)',
@@ -523,6 +526,7 @@ function Toggle({ on, onChange }) {
   );
 }
 
+// Shows the trading history in a table, with a button to download it.
 function CsvViewer({ onBack, onDownload }) {
   const isMobile =
     window.matchMedia('(max-width: 600px) and (pointer: coarse)').matches ||

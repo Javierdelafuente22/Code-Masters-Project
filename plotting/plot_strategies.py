@@ -1,18 +1,11 @@
 """
-LP vs PPO vs Heuristic comparison plots.
-
-Usage:
-    python plot_lp_vs_ppo.py
-
-Requires: ppo_inference_data.csv from plot_analysis.py
-Generates: plot_lp_vs_ppo.png, plot_all_strategies.png
+Makes plots comparing the battery strategies: PPO, the heuristic and the LP.
 """
 
 import os
 import sys
 
-# Allow `python plotting/plot_strategies.py` to find sibling packages
-# (utils, rl_env) by putting the project root on sys.path before they're imported.
+# Add the project root to the path so we can import utils and rl_env
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
@@ -23,9 +16,7 @@ from collections import deque
 
 from utils.data_loader import load_and_split
 
-# ============================================================
-# CONFIG
-# ============================================================
+# Settings
 DATA_PATH = "data/orderbook.csv"
 INFERENCE_CSV = "orderbook_results/ppo/analysis/ppo_inference_data.csv"
 OUTPUT_DIR = "orderbook_results/ppo/analysis"
@@ -42,7 +33,7 @@ STRATEGY_LEGEND_SIZE = 11
 
 
 def _get_spread_regimes(ppo_df):
-    """Return high/low day indices (tercile split, skipping medium)."""
+    """Return the high spread and low spread day numbers."""
     day_spreads = ppo_df.groupby('day')['spread'].mean()
     terciles = day_spreads.quantile([0.33, 0.66])
     high_days = day_spreads[day_spreads >= terciles[0.66]].index
@@ -50,10 +41,8 @@ def _get_spread_regimes(ppo_df):
     return high_days, low_days
 
 
-# ============================================================
-# Run LP day-by-day
-# ============================================================
 def run_lp_daily(df_test):
+    """Solve the perfect-foresight LP battery schedule for each test day."""
     tou = df_test['import_price'].values
     fit = df_test['export_price'].values
     midpoint = (tou + fit) / 2.0
@@ -105,10 +94,8 @@ def run_lp_daily(df_test):
     return pd.DataFrame(records)
 
 
-# ============================================================
-# Run Heuristic day-by-day
-# ============================================================
 def run_heuristic_daily(df_test):
+    """Run the price-percentile heuristic battery rule for each test day."""
     raw_demands = df_test[TARGET_AGENT].values
     import_prices = df_test['import_price'].values
     export_prices = df_test['export_price'].values
@@ -165,10 +152,8 @@ def run_heuristic_daily(df_test):
     return pd.DataFrame(records)
 
 
-# ============================================================
-# Plot: LP vs PPO (high/low only)
-# ============================================================
 def plot_lp_vs_ppo(ppo_df, lp_df, output_path):
+    """Compare PPO and LP battery SoC for high and low spread days."""
     high_days, low_days = _get_spread_regimes(ppo_df)
     regimes = [('High spread days', high_days), ('Low spread days', low_days)]
 
@@ -214,10 +199,8 @@ def plot_lp_vs_ppo(ppo_df, lp_df, output_path):
     print(f"LP vs PPO plot saved: {output_path}")
 
 
-# ============================================================
-# Plot: Heuristic vs PPO vs LP (high/low only)
-# ============================================================
 def plot_all_strategies(ppo_df, lp_df, heuristic_df, output_path):
+    """Compare all three strategies for high and low spread days."""
     high_days, low_days = _get_spread_regimes(ppo_df)
     regimes = [('High spread days', high_days), ('Low spread days', low_days)]
 
@@ -267,10 +250,8 @@ def plot_all_strategies(ppo_df, lp_df, heuristic_df, output_path):
     print(f"All strategies plot saved: {output_path}")
 
 
-# ============================================================
-# Plot: SoC-only comparison (no price/community lines)
-# ============================================================
 def plot_soc_comparison(ppo_df, lp_df, heuristic_df, output_path):
+    """Compare just the battery SoC of all three strategies by spread regime."""
     high_days, low_days = _get_spread_regimes(ppo_df)
     regimes = [('High spread days', high_days), ('Low spread days', low_days)]
 
@@ -313,10 +294,8 @@ def plot_soc_comparison(ppo_df, lp_df, heuristic_df, output_path):
     print(f"SoC comparison plot saved: {output_path}")
 
 
-# ============================================================
-# Plot: SoC-only comparison averaged across ALL test days (single panel)
-# ============================================================
 def plot_soc_comparison_overall(ppo_df, lp_df, heuristic_df, output_path):
+    """Compare battery SoC of all three strategies averaged over all test days."""
     fig, ax = plt.subplots(figsize=(12, 5))
     hours = np.arange(24)
 
@@ -347,9 +326,6 @@ def plot_soc_comparison_overall(ppo_df, lp_df, heuristic_df, output_path):
     print(f"SoC overall comparison plot saved: {output_path}")
 
 
-# ============================================================
-# Main
-# ============================================================
 if __name__ == "__main__":
     print("Loading data...")
     df_train, df_test, split_info = load_and_split(DATA_PATH, train_ratio=0.8)

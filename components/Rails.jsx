@@ -1,6 +1,4 @@
-// SystemRail — shows the emerging design tokens (left side)
-// NotesRail — shows contextual design notes per screen (right side)
-// TweaksPanel — the user-facing Tweaks UI
+// The side panels around the phone: design system, per-screen notes, and the Tweaks panel.
 
 function SystemRail() {
   return (
@@ -111,7 +109,7 @@ function TypeRow({ label, children }) {
   );
 }
 
-// ───────────── Notes (right) ─────────────
+// Notes shown on the right rail for each screen.
 const NOTES = {
   0: {
     title: 'Screen 1 · Postcode',
@@ -210,7 +208,7 @@ function NotesRail({ step }) {
   );
 }
 
-// ───────────── Tweaks panel ─────────────
+// Tweaks panel
 function TweaksPanel({ tweaks, onChange }) {
   const accents = ['forest', 'emerald', 'teal', 'copper'];
   return (

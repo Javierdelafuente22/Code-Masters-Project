@@ -1,11 +1,11 @@
-// Screen 3 — Savings reveal
+// Onboarding step 3: show the estimated yearly savings.
 function Screen3_Savings({ state, onNext, onBack }) {
   const [showCalc, setShowCalc] = React.useState(false);
   const [lo, hi] = [100, 300];
   const [loAnim, setLoAnim] = React.useState(0);
   const [hiAnim, setHiAnim] = React.useState(0);
 
-  // Count-up animation
+  // Animate the numbers counting up from 0 to the final amounts.
   React.useEffect(() => {
     const start = performance.now();
     const dur = 900;
@@ -29,7 +29,7 @@ function Screen3_Savings({ state, onNext, onBack }) {
       />
       <div>
 
-        {/* Hero range — horizontal, single line */}
+        {/* Big savings range */}
         <div style={{ margin: '8px 0 6px' }}>
           <div style={{
             display: 'flex', alignItems: 'baseline', gap: 14,
@@ -59,7 +59,7 @@ function Screen3_Savings({ state, onNext, onBack }) {
           </div>
         </div>
 
-        {/* Visual: savings bar */}
+        {/* Bar chart comparing standard tariff vs Ampeer */}
         <div style={{ marginTop: 36 }}>
           <div style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
@@ -117,7 +117,7 @@ function Screen3_Savings({ state, onNext, onBack }) {
                     )}
                   </div>
                 </div>
-                {/* Value lives OUTSIDE the bar — always legible */}
+                {/* Show the amount next to the bar */}
                 <span className="t-num" style={{
                   fontSize: 20, color: 'var(--ink-900)',
                   whiteSpace: 'nowrap', minWidth: 60, textAlign: 'right',
@@ -131,7 +131,7 @@ function Screen3_Savings({ state, onNext, onBack }) {
           <style>{`@keyframes pwGrow { from { width: 0; } }`}</style>
         </div>
 
-        {/* How we calculated */}
+        {/* Tap to see how the savings were worked out */}
         <button onClick={() => setShowCalc(v => !v)} style={{
           marginTop: 22,
           appearance: 'none', background: 'transparent', border: 0, padding: 0,
@@ -177,7 +177,7 @@ function Screen3_Savings({ state, onNext, onBack }) {
         )}
       </div>
 
-      {/* CTA */}
+      {/* Main button to continue */}
       <div style={{ marginTop: 28 }}>
         <PwButton onClick={onNext} icon={<IconArrowRight size={16}/>}>
           Set up your profile

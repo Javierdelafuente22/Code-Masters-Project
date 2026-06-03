@@ -1,20 +1,23 @@
+"""
+Quick look at the trained Q-learning brain.
+Shows what it prefers to do at 6 PM when prices are high.
+"""
+
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-# Load the brain
 q_table = np.load('trained_q_table.npy')
 
-# Let's look at Hour 18 (6 PM - Peak Time) and Price Bin 4 (Very Expensive)
-# q_table shape is (SoC, Price, Hour, Action)
+# Look at hour 18 (6 PM, peak time) and the most expensive price bin
 hour_to_check = 18
-price_bin_to_check = 4 
+price_bin_to_check = 4
 
-# Extract the Q-values for all 3 actions across all SoC levels
+# Pull out the scores for the 3 actions at every battery level
 data = q_table[:, price_bin_to_check, hour_to_check, :]
 
 plt.figure(figsize=(10, 6))
-sns.heatmap(data, annot=True, fmt=".2f", 
+sns.heatmap(data, annot=True, fmt=".2f",
             xticklabels=['Charge', 'Hold', 'Discharge'],
             yticklabels=[f'SoC {i}' for i in range(11)])
 plt.title(f"Brain Logic at Hour {hour_to_check} when Price is High")

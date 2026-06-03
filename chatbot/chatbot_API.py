@@ -8,16 +8,14 @@ load_dotenv()
 
 class EnergyChatbot:
     def __init__(self, prompt_path=None):
-        """
-        Sets up the API client and loads the static instructions.
-        """
+        """Sets up the API client and loads the system prompt."""
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("API Key missing from .env")
 
         self.client = genai.Client(api_key=api_key)
 
-        # Change your model here (e.g., 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash-lite')
+        # The model to use
         self.model_name = 'gemini-2.5-flash-lite'
 
         if prompt_path is None:
@@ -29,14 +27,11 @@ class EnergyChatbot:
             self.system_instructions = f.read()
 
     def get_chat_response(self, user_input=None, audio_path=None):
-        """
-        Fetches intent from the LLM, accepting either text or an audio file.
-        """
+        """Sends text or an audio file to the model and returns its JSON answer."""
         try:
             contents = [self.system_instructions]
 
             if audio_path:
-                # Upload with explicit mime_type for stability
                 audio_file = self.client.files.upload(
                     file=audio_path,
                     config={'mime_type': 'audio/wav'}

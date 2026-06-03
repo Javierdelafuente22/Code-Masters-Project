@@ -1,6 +1,6 @@
-// Dashboard — default landing tab. "Did I save money?"
+// Dashboard tab: the home screen, showing how much money you've saved plus other stats.
 function DashboardTab({ onNavigate }) {
-  const [window, setWindow] = React.useState('week'); // 'week' | 'month' | 'year'
+  const [window, setWindow] = React.useState('week'); // week, month or year
   const [trustOpen, setTrustOpen] = React.useState(false);
   const [hovInsight, setHovInsight] = React.useState(false);
   const [pdfOpen, setPdfOpen] = React.useState(false);
@@ -11,7 +11,7 @@ function DashboardTab({ onNavigate }) {
     year:  { saved: 284.60, savedTrend: 'On track for £440', co2: 540.1, kwh: 1420, insight: "You're top 3 in your community. Chat to your assistant to climb the leaderboard" },
   }[window];
 
-  // Animated count-up for hero £ figure
+  // makes the big £ number count up when it changes
   const [savedAnim, setSavedAnim] = React.useState(0);
   React.useEffect(() => {
     setSavedAnim(0);
@@ -43,7 +43,7 @@ function DashboardTab({ onNavigate }) {
 
   React.useEffect(() => {
     if (!trustOpen || !scrollRef.current) return;
-    // Wait one frame for the expanded panel to render, then scroll to bottom
+    // wait for the panel to open, then scroll down to show it
     requestAnimationFrame(() => {
       scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
     });
@@ -75,7 +75,7 @@ function DashboardTab({ onNavigate }) {
       />
 
       <div style={{ padding: '0 24px 120px' }}>
-        {/* Time window toggle */}
+        {/* week / month / year switch */}
         <div style={{
           display: 'flex', padding: 4,
           background: 'var(--cream-100)', borderRadius: 999,
@@ -97,7 +97,7 @@ function DashboardTab({ onNavigate }) {
           ))}
         </div>
 
-        {/* Hero — money saved */}
+        {/* the big money-saved number */}
         <div style={{ marginBottom: 28 }}>
           <div className="t-label" style={{ color: 'var(--ink-500)', marginBottom: 10, fontSize: 13 }}>
             Saved this {window}
@@ -135,7 +135,7 @@ function DashboardTab({ onNavigate }) {
           </div>
         </div>
 
-        {/* Secondary metrics */}
+        {/* CO2 saved and kWh traded */}
         <div style={{
           display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20,
         }}>
@@ -143,7 +143,7 @@ function DashboardTab({ onNavigate }) {
           <MetricCard icon={<IconBolt size={12}/>} label="kWh traded" value={data.kwh} unit="kWh"/>
         </div>
 
-        {/* Comparative badge — tappable, navigates to Assistant */}
+        {/* comparison message that links to the Assistant tab */}
         <button onClick={() => onNavigate && onNavigate('assistant')}
           onMouseEnter={() => setHovInsight(true)} onMouseLeave={() => setHovInsight(false)}
           style={{
@@ -172,7 +172,7 @@ function DashboardTab({ onNavigate }) {
           <IconChevron size={13} style={{ color: hovInsight ? '#fff' : 'var(--ink-400)', flexShrink: 0 }}/>
         </button>
 
-        {/* Insights feed */}
+        {/* list of recent moments / updates */}
         <div ref={momentsRef} style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           marginBottom: 12,
@@ -225,7 +225,7 @@ function DashboardTab({ onNavigate }) {
           />
         </div>
 
-        {/* Footer trust anchor — expandable */}
+        {/* expandable note reassuring the user they're never worse off */}
         <div ref={trustRef} style={{ marginTop: 24 }}>
           <button onClick={() => setTrustOpen(o => !o)} style={{
             appearance: 'none', border: '1px solid var(--cream-200)',
@@ -349,6 +349,7 @@ function InsightCard({ day, icon, title, detail, accent, onClick }) {
   );
 }
 
+// shows the weekly report PDF on screen and lets the user download or share it
 function PdfViewer({ onBack }) {
   const isMobile =
     window.matchMedia('(max-width: 600px) and (pointer: coarse)').matches ||
@@ -399,7 +400,7 @@ function PdfViewer({ onBack }) {
           await navigator.share({ files: [file], title: 'Ampeer Weekly Report' });
           return;
         }
-      } catch (e) { /* cancelled or unsupported — fall through */ }
+      } catch (e) { /* sharing cancelled or not supported, so just download instead */ }
     }
     const a = document.createElement('a');
     a.href = 'app/ampeer_weekly_report.pdf';
@@ -409,7 +410,7 @@ function PdfViewer({ onBack }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--cream-50)' }}>
-      {/* Header — back button absolute-left, title truly centred, download absolute-right (desktop only) */}
+      {/* header: back button, title, and a download button */}
       <div style={{
         padding: `${isMobile ? 26 : 66}px 20px 16px`,
         background: 'var(--cream-50)',

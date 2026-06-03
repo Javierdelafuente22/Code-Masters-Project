@@ -1,20 +1,10 @@
 """
-SAC Training Script for P2P Energy Trading.
-
-Usage:
-    python train_sac.py --timesteps 500000
-
-Key differences from PPO:
-    - Off-policy: replay buffer reuses each transition hundreds of times
-    - Automatic entropy tuning (ent_coef='auto')
-    - Adds rolling average price feature (12 dims instead of 11)
-    - No VecNormalize needed (but still used for stability)
-
-Reuses: rl_env/ (environment, battery, clearing), plot_training.py, utils/
+Trains a SAC agent to control the battery for peer-to-peer energy trading.
+Similar to the PPO script, but uses SAC and adds a rolling average price feature.
 """
 
-import argparse
 import os
+from types import SimpleNamespace
 import numpy as np
 import pandas as pd
 
@@ -27,26 +17,14 @@ import gymnasium as gym
 from gymnasium import spaces
 
 from rl_env.battery import Battery
-from rl_env.orderbook_clearing import clear_market_for_agent
+from rl_env.rl_orderbook_simp import clear_market_for_agent
 from rl_env.p2p_energy_env import MAX_RATE, TARGET_AGENT, OTHER_AGENTS, MARKET_FEATURES
 from utils.data_loader import load_and_split, print_split_info
-from utils.evaluation import run_evaluation_pipeline
 from plotting.plot_training import plot_lines, plot_shaded_both, plot_shaded_test_only
 
 
-# ============================================================
-# Feature engineering: add rolling price average to dataframe
-# ============================================================
 def add_rolling_price_feature(df, window=24):
-    """
-    Add a rolling mean of import_price over the last `window` hours.
-    
-    This gives the agent price context (is the current price high or low
-    relative to recent history?) — the same information the heuristic uses
-    via price percentiles.
-    
-    Uses min_periods=1 so early rows still get a value (shorter window).
-    """
+    """Add the average import price over the last `window` hours, so the agent knows if prices are currently high or low."""
     df = df.copy()
     df['import_price_rolling_avg'] = (
         df['import_price']
@@ -57,17 +35,11 @@ def add_rolling_price_feature(df, window=24):
     return df
 
 
-# ============================================================
-# Extended environment with rolling price feature (12 dims)
-# ============================================================
 EXTENDED_FEATURES = MARKET_FEATURES + ['import_price_rolling_avg']
 
 
 class P2PEnergySACEnv(gym.Env):
-    """
-    Same as P2PEnergyTradingEnv but with 12 observation dims
-    (adds rolling average of import price).
-    """
+    """The trading environment for SAC: like the PPO one but with an extra price feature (12 inputs)."""
     metadata = {"render_modes": []}
 
     def __init__(self, df, reward_scale=10.0, episode_length=24):
@@ -76,7 +48,7 @@ class P2PEnergySACEnv(gym.Env):
         self.reward_scale = reward_scale
         self.episode_length = episode_length
 
-        # Precompute arrays
+        # Pull the columns we need into plain arrays for speed
         self.raw_demands = self.df[TARGET_AGENT].values.astype(np.float32)
         self.market_features = self.df[EXTENDED_FEATURES].values.astype(np.float32)
         self.import_prices = self.df['import_price'].values.astype(np.float32)
@@ -90,10 +62,10 @@ class P2PEnergySACEnv(gym.Env):
 
         self.battery = Battery(capacity=1.0, max_rate=0.4, efficiency=0.95, initial_soc=0.0)
 
-        # Continuous action [-1, 1]
+        # The agent picks one number between -1 (discharge) and 1 (charge)
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,), dtype=np.float32)
 
-        # 12 dims: demand, soc, 9 market features, rolling avg price
+        # What the agent sees each step: demand, battery level, and the price/time features
         self.observation_space = spaces.Box(
             low=-1.5, high=1.5, shape=(12,), dtype=np.float32
         )
@@ -118,20 +90,20 @@ class P2PEnergySACEnv(gym.Env):
         export_price = float(self.export_prices[global_idx])
         others = self.others_demands[global_idx]
 
-        # Continuous action
+        # Apply the battery action to this hour's demand
         action_scalar = float(np.clip(np.asarray(action).flatten()[0], -1.0, 1.0))
         action_power = action_scalar * MAX_RATE
         demand_delta, new_soc = self.battery.apply_action(action_power)
         modified_demand = raw_demand + demand_delta
 
-        # Two clearings for reward (battery contribution only)
+        # Reward = how much the battery saved this hour (cost without it minus cost with it)
         cost_no_battery, _, _ = clear_market_for_agent(raw_demand, others, import_price, export_price)
         actual_cost, p2p_vol, grid_vol = clear_market_for_agent(modified_demand, others, import_price, export_price)
 
         raw_reward = cost_no_battery - actual_cost
         reward = float(raw_reward * self.reward_scale)
 
-        # Time limit = truncated (not terminated)
+        # An episode ends after one day (24 hours)
         self.current_step += 1
         terminated = False
         truncated = self.current_step >= self.episode_length
@@ -160,14 +132,12 @@ class P2PEnergySACEnv(gym.Env):
         obs = np.zeros(12, dtype=np.float32)
         obs[0] = self.raw_demands[global_idx]
         obs[1] = self.battery.soc
-        obs[2:12] = self.market_features[global_idx]  # 10 market features (incl rolling avg)
+        obs[2:12] = self.market_features[global_idx]
         return obs
 
 
-# ============================================================
-# Callback (same structure as PPO)
-# ============================================================
 class RewardTrackingCallback(BaseCallback):
+    """Records the training and test rewards during training so we can plot them later."""
     def __init__(self, eval_env, eval_freq=10_000, n_eval_episodes=10,
                  episode_log_freq=1000, verbose=1):
         super().__init__(verbose)
@@ -196,6 +166,7 @@ class RewardTrackingCallback(BaseCallback):
                         'source': 'train',
                     })
 
+        # Every so often, test the agent on the unseen test set
         if self.n_calls % self.eval_freq == 0:
             rewards = []
             for _ in range(self.n_eval_episodes):
@@ -229,9 +200,6 @@ class RewardTrackingCallback(BaseCallback):
         return True
 
 
-# ============================================================
-# Main
-# ============================================================
 def train(args):
     print("\n" + "=" * 55)
     print("SAC TRAINING — P2P Energy Trading")
@@ -239,16 +207,14 @@ def train(args):
 
     os.makedirs(args.output_dir, exist_ok=True)
 
-    # Load and split
     df_train, df_test, split_info = load_and_split(args.data, train_ratio=0.8)
     print_split_info(split_info)
 
-    # Add rolling price feature
+    # Add the rolling average price to both sets
     df_train = add_rolling_price_feature(df_train, window=24)
     df_test = add_rolling_price_feature(df_test, window=24)
     print("  Added feature: import_price_rolling_avg (24h window)")
 
-    # Create environments
     def make_train_env():
         return Monitor(P2PEnergySACEnv(df_train, reward_scale=args.reward_scale))
 
@@ -268,7 +234,6 @@ def train(args):
     print(f"  Obs dims:  12 (11 original + rolling avg price)")
     print(f"  Action:    continuous [-1, 1]")
 
-    # SAC model
     print(f"\nTraining SAC for {args.timesteps:,} timesteps...")
     print(f"  LR:           {args.lr}")
     print(f"  Buffer size:  {args.buffer_size:,}")
@@ -283,11 +248,11 @@ def train(args):
         buffer_size=args.buffer_size,
         learning_starts=args.learning_starts,
         batch_size=args.batch_size,
-        tau=0.005,              # Soft update coefficient for target network
+        tau=0.005,
         gamma=args.gamma,
-        train_freq=4,           # Collect 4 steps before updating (faster than 1)
-        gradient_steps=4,       # 4 gradient steps per update batch
-        ent_coef='auto',        # SAC auto-tunes entropy (no manual tuning needed)
+        train_freq=4,
+        gradient_steps=4,
+        ent_coef='auto',        # SAC tunes the exploration itself
         target_update_interval=1,
         verbose=1,
         tensorboard_log=args.log_dir,
@@ -298,7 +263,7 @@ def train(args):
         ),
     )
 
-    # Sync normalisation stats
+    # Make the test environment share the training environment's scaling stats
     eval_env.obs_rms = train_env.obs_rms
     eval_env.ret_rms = train_env.ret_rms
 
@@ -318,7 +283,7 @@ def train(args):
     except KeyboardInterrupt:
         print("\n\nTraining interrupted — saving progress...")
 
-    # Save CSV + plots
+    # Save the reward history and draw the training curves
     episode_df = pd.DataFrame(callback.episode_log)
     csv_path = os.path.join(args.output_dir, 'training_episodes.csv')
     episode_df.to_csv(csv_path, index=False)
@@ -330,78 +295,15 @@ def train(args):
     plot_shaded_both(episode_df, os.path.join(args.output_dir, 'plot2_shaded_both.png'))
     plot_shaded_test_only(episode_df, os.path.join(args.output_dir, 'plot3_shaded_test.png'))
 
-    # Save model
+    # Save the trained model and its scaling stats
     model_path = os.path.join(args.output_dir, "sac_p2p_trading")
     model.save(model_path)
     train_env.save(os.path.join(args.output_dir, "vec_normalize.pkl"))
     print(f"\nModel saved to: {model_path}.zip")
 
-    # Final evaluation using orderbook_basic.py
-    # Strategy: generate modified CSV via evaluation pipeline (which builds obs
-    # using the 11-dim format), then clean the rolling avg column before
-    # running orderbook_basic.py which doesn't expect it.
-    print("\nFinal evaluation on TEST set...")
-
-    obs_rms = train_env.obs_rms
-    clip_obs = train_env.clip_obs
-    epsilon = train_env.epsilon
-
-    def normalize_obs(obs):
-        return np.clip(
-            (obs - obs_rms.mean) / np.sqrt(obs_rms.var + epsilon),
-            -clip_obs, clip_obs
-        ).astype(np.float32)
-
-    test_rolling_avg = df_test['import_price_rolling_avg'].values.astype(np.float32)
-    eval_step_counter = [0]
-
-    def trained_policy(obs_11):
-        """
-        Evaluation pipeline passes 11-dim obs.
-        We append the rolling avg price to make it 12-dim, normalise, predict.
-        """
-        idx = eval_step_counter[0]
-        idx = min(idx, len(test_rolling_avg) - 1)
-
-        obs_12 = np.zeros(12, dtype=np.float32)
-        obs_12[0:11] = obs_11
-        obs_12[11] = test_rolling_avg[idx]
-
-        norm_obs = normalize_obs(obs_12)
-        action, _ = model.predict(norm_obs, deterministic=True)
-        eval_step_counter[0] += 1
-        return float(np.asarray(action).flatten()[0])
-
-    # Step 1: Generate modified CSV (with battery actions applied)
-    from utils.evaluation import generate_modified_csv
-    modified_csv = os.path.join(args.output_dir, 'orderbook_modified_sac.csv')
-    generate_modified_csv(df_test, trained_policy, modified_csv, episode_length=24)
-
-    # Step 2: Remove rolling avg column so orderbook_basic.py doesn't choke
-    csv_df = pd.read_csv(modified_csv)
-    if 'import_price_rolling_avg' in csv_df.columns:
-        csv_df = csv_df.drop(columns=['import_price_rolling_avg'])
-        csv_df.to_csv(modified_csv, index=False)
-
-    # Step 3: Run orderbook clearing for exact KPIs
-    from trading_algorithms.orderbook_basic import run_energy_market_simulation_no_battery
-    run_energy_market_simulation_no_battery(
-        input_file=modified_csv,
-        alpha_file=args.alpha_file,
-        detailed_transactions=os.path.join(args.output_dir, 'detailed_sac.csv'),
-        summary_transactions=os.path.join(args.output_dir, 'summary_sac.csv'),
-        target_agents=[TARGET_AGENT]
-    )
-
-    # Step 4: Clean up intermediate CSV
-    if not args.keep_intermediate and os.path.exists(modified_csv):
-        os.remove(modified_csv)
-
     print("\n" + "=" * 55)
     print("FILES SAVED in", args.output_dir)
     print("=" * 55)
-    print("  summary_sac.csv            (SAC KPIs)")
-    print("  detailed_sac.csv           (per-step transactions)")
     print("  training_episodes.csv      (episode reward data)")
     print("  plot1/2/3_*.png            (training curves)")
     print("  sac_p2p_trading.zip        (trained model)")
@@ -410,25 +312,20 @@ def train(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train SAC for P2P Energy Trading")
-    parser.add_argument("--data", type=str, default="data/orderbook.csv")
-    parser.add_argument("--alpha_file", type=str, default="data/alphas.csv")
-    parser.add_argument("--timesteps", type=int, default=500_000)
-    parser.add_argument("--lr", type=float, default=3e-4)
-    parser.add_argument("--buffer_size", type=int, default=100_000,
-                        help="Replay buffer size")
-    parser.add_argument("--learning_starts", type=int, default=2400,
-                        help="Random actions before learning starts (100 episodes)")
-    parser.add_argument("--batch_size", type=int, default=256)
-    parser.add_argument("--gamma", type=float, default=0.99)
-    parser.add_argument("--net_width", type=int, default=128,
-                        help="Width of each hidden layer [N, N]")
-    parser.add_argument("--reward_scale", type=float, default=10.0)
-    parser.add_argument("--eval_freq", type=int, default=10_000)
-    parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--output_dir", type=str, default="orderbook_results/sac")
-    parser.add_argument("--log_dir", type=str, default="logs/tensorboard_sac")
-    parser.add_argument("--keep_intermediate", action="store_true")
-
-    args = parser.parse_args()
+    # Settings for a training run
+    args = SimpleNamespace(
+        data="data/orderbook.csv",
+        timesteps=500_000,
+        lr=3e-4,
+        buffer_size=100_000,
+        learning_starts=2400,       # take random actions at first to fill the buffer
+        batch_size=256,
+        gamma=0.99,                 # how much future rewards matter
+        net_width=128,              # size of each hidden layer
+        reward_scale=10.0,
+        eval_freq=10_000,
+        seed=42,
+        output_dir="orderbook_results/sac",
+        log_dir="logs/tensorboard_sac",
+    )
     train(args)

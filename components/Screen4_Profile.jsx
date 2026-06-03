@@ -1,4 +1,4 @@
-// Screen 4 — Profile confirmation
+// Onboarding step 4: show the user's details so they can confirm them.
 function Screen4_Profile({ state, setState, onNext, onBack }) {
   const facts = state.profile || [
     { id: 'solar',  icon: <IconSolar size={16}/>,     label: 'Solar',           value: '8 panels · 3.2 kWp',       why: "Helps us know how much you can trade" },
@@ -16,9 +16,8 @@ function Screen4_Profile({ state, setState, onNext, onBack }) {
         size={32}
       />
 
-      {/* Card */}
       <div className="pw-card" style={{ marginTop: 24, overflow: 'visible' }}>
-        {/* Header strip */}
+        {/* Name and postcode at the top of the card */}
         <div style={{
           background: 'var(--lime-50)',
           padding: '18px 18px 16px',
@@ -50,7 +49,7 @@ function Screen4_Profile({ state, setState, onNext, onBack }) {
           </div>
         </div>
 
-        {/* Facts list */}
+        {/* List of household details */}
         <div>
           {facts.map((f, i) => (
             <div key={f.id} style={{
@@ -79,7 +78,7 @@ function Screen4_Profile({ state, setState, onNext, onBack }) {
         </div>
       </div>
 
-      {/* Privacy note */}
+      {/* Note about how the data is used */}
       <div style={{
         marginTop: 16, padding: '12px 14px',
         display: 'flex', gap: 10, alignItems: 'flex-start',

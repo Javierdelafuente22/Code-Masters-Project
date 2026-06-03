@@ -1,4 +1,4 @@
-// Additional icons for the main app (tabs, chat, dashboard)
+// App icons as small SVG components.
 function IconTabHome({ size = 22, filled }) {
   return filled ? (
     <svg width={size} height={size} viewBox="0 0 22 22" fill="currentColor">
@@ -30,7 +30,7 @@ function IconTabCommunity({ size = 22, filled }) {
 }
 
 function IconTabDashboard({ size = 26, filled }) {
-  // Stylized bolt — the hero tab
+  // Lightning bolt for the Dashboard tab.
   return filled ? (
     <svg width={size} height={size} viewBox="0 0 26 26" fill="currentColor">
       <path d="M14.5 2L6 14h6l-2 10 8.5-12h-6l2-10z"/>

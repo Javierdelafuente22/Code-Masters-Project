@@ -1,9 +1,8 @@
-// Clean main-app shell — 5-tab app.
-// On mobile (touch + narrow screen), renders full-screen with no frame.
-// On desktop, keeps the centered IOSDevice card.
+// Main app shell for the 5 tabs.
+// On mobile it fills the screen; on desktop it sits inside the phone frame.
 
-// Weather state is owned here (not in HouseTab) so the override applied on the
-// Home tab also drives the Community tab's animation.
+// Weather lives here, not in HouseTab, so both the Home and Community tabs
+// can use the same value.
 const SHELL_WEATHER_LAT = 51.48, SHELL_WEATHER_LON = -0.20; // Fulham, SW6
 function shellClassifyWeather(code) {
   if (code <= 1) return 'sunny';
@@ -11,7 +10,7 @@ function shellClassifyWeather(code) {
   return 'rainy';
 }
 
-// Night runs 20:00–06:00 UK local time. Overrides the live weather kind.
+// Night is 20:00–06:00 UK time. At night we show the night look.
 function isUKNight(date) {
   const hr = parseInt(
     new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', hour: 'numeric', hour12: false }).format(date),
@@ -51,11 +50,10 @@ function useWeatherState() {
   }, []);
 
   const isNight = isUKNight(now);
-  // Time wins over weather: at night, kind is 'night' regardless of cloud cover.
+  // At night we always use 'night', even if the weather is sunny.
   const liveKind = isNight ? 'night' : (weather?.kind ?? 'sunny');
-  // An override that matches the live kind has no visible effect, so we expose it
-  // as null. That way the WeatherPill, status dot, and "isLive" flag all treat
-  // the app as connected/live without the user needing to hit Reset.
+  // If the chosen override is the same as the live weather, ignore it so the
+  // app still counts as live.
   const effectiveOverride = override && override !== liveKind ? override : null;
   const activeKind = effectiveOverride || liveKind;
   const activeTemp = weather?.temp ?? 18;
@@ -92,8 +90,8 @@ function MainAppShell() {
     }
   };
 
-  // AssistantTab is always mounted to preserve conversation + toggle state.
-  // It is shown/hidden via display rather than remounted on tab switch.
+  // Keep the Assistant tab mounted so its chat isn't lost when switching tabs;
+  // we just hide it instead of removing it.
   const assistantLayer = (style) => (
     <div style={{ position: 'absolute', inset: 0, display: tab === 'assistant' ? 'flex' : 'none', flexDirection: 'column', ...style }}>
       <AssistantTab/>

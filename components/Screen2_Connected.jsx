@@ -1,7 +1,7 @@
-// Screen 2 — Connection success
+// Onboarding step 2: show that the smart meter is connected.
 function Screen2_Connected({ onNext, onBack, provider = 'your energy provider' }) {
   const [ready, setReady] = React.useState(false);
-  // Checkmark lands at ~0.75s; enable CTA shortly after
+  // Wait a moment before enabling the button so the animation can play.
   React.useEffect(() => {
     const t = setTimeout(() => setReady(true), 900);
     return () => clearTimeout(t);
@@ -23,7 +23,7 @@ function Screen2_Connected({ onNext, onBack, provider = 'your energy provider' }
         border: '1px solid var(--cream-200)',
         display: 'flex', flexDirection: 'column', alignItems: 'center',
       }}>
-        {/* Check + ring */}
+        {/* Animated checkmark with rings */}
         <div style={{ position: 'relative', width: 100, height: 100 }}>
           {[0, 0.4, 0.8].map((d, i) => (
             <div key={i} style={{
@@ -51,7 +51,7 @@ function Screen2_Connected({ onNext, onBack, provider = 'your energy provider' }
           </div>
         </div>
 
-        {/* Provider badge */}
+        {/* Meter ID badge */}
         <div style={{
           marginTop: 24, padding: '10px 14px',
           borderRadius: 'var(--r-pill)',
